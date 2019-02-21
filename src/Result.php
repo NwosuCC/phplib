@@ -1,5 +1,7 @@
 <?php
 
+namespace Orcses\PhpLib;
+
 
 Abstract class Result {
     private static $reports;

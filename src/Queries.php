@@ -1,5 +1,11 @@
 <?php
 
+namespace Orcses\PhpLib;
+
+use Exception;
+use mysqli as MySQLi;
+
+
 class Queries {
 	private static $sql, $conn;
 	public static $result, $rows = [];
@@ -10,7 +16,7 @@ class Queries {
 
           $db = $db ?: DB_DATABASE;
 
-          static::$conn = new mysqli(DB_HOST,DB_USERNAME,DB_PASSWORD, $db);
+          static::$conn = new MySQLi(DB_HOST,DB_USERNAME,DB_PASSWORD, $db);
       }
 
       return static::$conn;

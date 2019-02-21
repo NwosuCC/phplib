@@ -1,27 +1,6 @@
 <?php
-// echo json_encode(['post' => $_POST, 'get' => $_GET, 'upFile' => $_FILES]); exit;
 
-// echo json_encode(['doc' => $_SERVER['DOCUMENT_ROOT'], 'host' => $_SERVER['HTTP_HOST']]); exit;
-// Output: xampp/htdocs | localhost
-
-
-// ==================   S A M P L E   P A Y L O A D   ==================
-/*$_FILES['my_image'] = [
-    'name' => 'index.html', 'tmp_name' => 'C;/temp/CnIChi.tmp', 'size' => '1203',
-    'error' => 0
-];
-$upFile = $_FILES['my_image'];
-
-$file_type = 'image';               $allowed_types = ['jpg', 'png'];
-$upFile_name = $upFile['name'];     $upload_directory = 'uploads';
-$client = 'org@atlassian';          $key = 'my_image';
-
-$parameters = [
-    'client' => $client, 'post_key' => $key, 'file_name' => $upFile_name,
-    'upload_directory' => $upload_directory,
-    'file_type' => $file_type, 'allowed_types' => $allowed_types
-];
-new Upload($upFile, $parameters);*/
+namespace Orcses\PhpLib;
 
 
 class Upload {

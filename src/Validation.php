@@ -1,5 +1,8 @@
 <?php
 
+namespace Orcses\PhpLib;
+
+
 class Validation {
     private static $failed_rule;
 

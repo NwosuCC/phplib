@@ -1,12 +1,6 @@
 <?php
-function pr($data, $json = 1, $exit = 1, $html = 0){
-    $newlines = ($html === 1) ? '<br><br>' : "\n\n";
-    if($json !== 0){ echo json_encode($data); }
-    elseif(is_array($data)){ print_r($data); }
-    else{ var_dump($data); }
-    echo $newlines;
-    if($exit !== 0){ exit; }
-}
+
+namespace Orcses\PhpLib;
 
 
 class Utility
@@ -86,6 +80,7 @@ class Utility
         return Queries::select($table, '', $where)->to_array();
     }
 
+    // ToDo: remove this dependency Schema::class
     public static function strip_guarded_columns($table, $row){
         $x_columns = Schema::tables($table, 'guarded');
         return static::array_slice_parts($x_columns, $row, true);
