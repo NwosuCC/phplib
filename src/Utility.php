@@ -80,6 +80,7 @@ class Utility
         return Queries::select($table, '', $where)->to_array();
     }
 
+    /** @deprecated */
     public static function strip_guarded_columns($remove_columns, $row){
       return static::array_slice_parts($remove_columns, $row, true);
     }
