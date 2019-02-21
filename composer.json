@@ -15,7 +15,9 @@
     "ext-mysqli": "*"
   },
   "autoload": {
-    "Orcses\\PhpLib\\": "src/"
+    "psr-4": {
+      "Orcses\\PhpLib\\": "src/"
+    }
   },
   "extra": {
     "branch-alias": {
