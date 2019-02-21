@@ -17,7 +17,6 @@
   "autoload": {
     "Orcses\\PhpLib\\": "src/"
   },
-  "minimum-stability": "dev",
   "extra": {
     "branch-alias": {
       "dev-develop": "1.x-dev"
