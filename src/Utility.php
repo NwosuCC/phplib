@@ -80,10 +80,8 @@ class Utility
         return Queries::select($table, '', $where)->to_array();
     }
 
-    // ToDo: remove this dependency Schema::class
-    public static function strip_guarded_columns($table, $row){
-        $x_columns = Schema::tables($table, 'guarded');
-        return static::array_slice_parts($x_columns, $row, true);
+    public static function strip_guarded_columns($remove_columns, $row){
+      return static::array_slice_parts($remove_columns, $row, true);
     }
 
     public static function pluck_columns($rows, $columns){
