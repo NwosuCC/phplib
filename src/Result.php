@@ -3,21 +3,25 @@
 namespace Orcses\PhpLib;
 
 
-use Net\Response;
-
 Abstract class Result {
-  private static $reports, $response;
+  private static $reports;
 
   public static function prepare($result){
     global $_REPORTS;
     static::$reports = $_REPORTS;
     $notice = [];
 
-    if(is_array($result) and count($result) >= 2){
-      if(!isset($result[2])){ $result[2] = []; }
+    /*if(is_array($result) and count($result) >= 2){
+        if(!isset($result[2])){ $result[2] = []; }
     }else{
+        return null;
+    }*/
+    if(!is_array($result) or count($result) < 2){
       return null;
     }
+
+    if(!isset($result[2])){ $result[2] = []; }
+
 
     list($function, $error_number, $info) = $result;
 
@@ -68,19 +72,17 @@ Abstract class Result {
       return null;
   }*/
 
-  public static function dispatch($result, $info, $send = false){
+  public static function dispatch($result, $info){
     list($code, $message) = $result;
-
-    static::$response = [
+    $response = [
       'status' => static::status($code),  'code' => $code,
       'message' => $message,              'info' => $info
     ];
+    static::send_response($response);
+  }
 
-    if($send === true) {
-      static::send_response();
-    }
-
-    return static::$response;
+  private static function status($code){
+    return (static::successful($code)) ? 'Success' : 'Error';
   }
 
   public static function successful($result){
@@ -89,18 +91,14 @@ Abstract class Result {
     return (in_array($code, $success_codes));
   }
 
-  private static function status($code){
-    return (static::successful($code)) ? 'Success' : 'Error';
-  }
-
-  private static function send_response(){
+  private static function send_response($response){
     /* NOTE:
      * Webpack devServer proxy now takes care of the CORS error even without the (otherwise required) headers below
      */
 //      header('Access-Control-Allow-Origin: http://localhost:8080');
 //      header('Access-Control-Allow-Headers: Content-Type');
 
-    die(json_encode(static::$response));
+    die(json_encode($response));
   }
 
 }
