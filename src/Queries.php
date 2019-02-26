@@ -128,7 +128,9 @@ class Queries {
             // Value is a MySql keyword|function e.g now(), so, should not be quoted
             $column = str_replace('|s', '', $column);
           }else{
-            if(!is_array($value)){ list($value) = static::add_single_quotes([$value]); }
+            if(!is_array($value)){
+              list($value) = static::add_single_quotes([$value]);
+            }
           }
         }
 
@@ -183,9 +185,15 @@ class Queries {
         }else{
           list($column) = static::add_back_quotes([$column]);
 
-          $columns[] = $column;
-          $values[] = $value;
-          $update_values[] = "$column = $value";
+          if(stristr($column, '_blank_')){
+            // Use column name '_blank_' to insert only the sub-query value in a Where... clause
+            $update_values[] = "$value";
+          }
+          else {
+            $columns[] = $column;
+            $values[] = $value;
+            $update_values[] = "$column = $value";
+          }
         }
       }
     }
