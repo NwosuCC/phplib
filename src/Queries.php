@@ -70,9 +70,12 @@ class Queries {
       'column' => "`", 'value' => "'"
     ];
 
-    $char = $types[ $type ] ?? $types['value'];
-
     foreach($array as $key => $value){
+      $char = $types[ $type ] ?? $types['value'];
+
+      ///E.g w.status as withdrawal_status : $value - w.status, $alias - withdrawal_status
+      list($value, $alias) = (is_array($value)) ? $value : [$value, ''];
+
       // Catch any existing single quotes that is NOT already escaped
       $quote_index = strpos($value, $char);
       $slash_index = strpos($value,"\\");
@@ -81,9 +84,26 @@ class Queries {
         $array = false;  break;
       }
 
-      $value = trim($value);
-      $array[$key] = "{$char}{$value}{$char}";
+      if($type === 'column'){
+        if(stripos($value, '|v') !== false){
+          $char = '';  // no quotes
+          $value = str_replace('|v', '', $value);
+        }
+        else if(stristr($value, '.')){
+          $char = '';  // no quotes
+//                list($table, $value) = explode('.', $value);
+        }
+
+        if($alias){
+          $value = "$value as $alias";
+        }
+      }
+
+      $table = (!empty($table)) ? $table.'.' : '';
+
+      $array[ $key ] = $table . "{$char}". trim($value) ."{$char}";
     }
+
     return $array;
   }
 

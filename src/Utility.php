@@ -7,8 +7,10 @@ class Utility
 {
   // Off: If true, removes columns specified in $parts and returns the rest
   //      Else, returns only the columns specified in $parts
-  public static function array_pick(array $__parts, array $__array, bool $off = false, bool $assoc = true)
+  public static function array_pick(array $__parts, $__array, bool $off = false, bool $assoc = true)
   {
+    $__array = (array) $__array;
+
     $old_keys = [];
 
     if($off){
@@ -96,7 +98,7 @@ class Utility
 
   /** @deprecated */
   public static function strip_guarded_columns($remove_columns, $row){
-    return static::array_slice_parts($remove_columns, $row, true);
+    return static::array_pick($remove_columns, $row, true);
   }
 
   public static function pluck_columns($rows, $columns){

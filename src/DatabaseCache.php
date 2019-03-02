@@ -46,6 +46,6 @@ class DatabaseCache
     $where = ['key' => $key];
 
     return Queries::update_new($table, $update_values, $where)
-        or Queries::insert_check_new($table, $update_values, $where);
+      or Queries::insert_check_new($table, $update_values, $where);
   }
 }
