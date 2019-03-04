@@ -18,7 +18,10 @@
   "autoload": {
     "psr-4": {
       "Orcses\\PhpLib\\": "src/"
-    }
+    },
+    "files": [
+      "misc/helpers.php"
+    ]
   },
   "extra": {
     "branch-alias": {

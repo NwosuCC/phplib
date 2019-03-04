@@ -2,68 +2,65 @@
 
 namespace Orcses\PhpLib;
 
+use Exception;
+
 
 class Logger {
-    private static $files = [
-        'whits' => '/../hts-log.txt',
-        'tasks' => '/../misc/dlv-log.txt',
-        'error' => '/../misc/err-log.txt',
-    ];
+  // Specify log directory and file(s) in config.php
+  private static $log_dir;
 
-    public static function log($type, $details){
-        if(empty(static::$files[$type]) or empty($details)){
-            return false;
-        }
+  private static $files = [
+    'error' => 'error-log.txt',
+  ];
 
-        if($report = static::composeReport($type, $details)){
-            $logfile = __DIR__ . static::$files[$type];
-            $fileHandle = fopen($logfile,'a');
-            fwrite($fileHandle, $report);
-            fclose($fileHandle);
-        }
-        return !empty($report);
+  public static function log($type, $details){
+    self::check_parameters();
+
+    if(empty(static::$files[$type]) or empty($details)){
+      $error_message = empty(static::$files[$type])
+        ? "Type [$type] is not supported"
+        : 'Parameter $details must not be empty';
+
+      throw new Exception('Logger::log() ' . $error_message);
     }
 
-    private static function composeReport($type, $details){
-        $server_host = $_ENV['server_host'];
-        $report = null;
+    if($report = static::composeReport($type, $details)){
+      $logfile = static::getLogFile($type);
 
-        if($type == 'tasks'){
-            list($file, $delivery, $email, $name) = $details;
+      $fileHandle = fopen($logfile,'a');
 
-            if(file_exists($file) and in_array($delivery, [1,2])){
-                $size = static::formatFileSize(filesize($file));
-                $file = explode('/', $file);
-                $file = end($file);
-
-                $actions = ['1' => 'sent to email', '2' => 'downloaded by' ];
-                $delivered_by = $actions[$delivery];
-                $report = "File {file} {$delivered_by} {mail} [{name}] from ".$server_host;
-
-                $report = str_replace('{file}', $file . ' ['.$size.']',
-                    str_replace('{mail}', $email,
-                        str_replace('{name}', $name, $report)));
-                $report .= " at " . date('d-m-Y h:i:s a',time()) . "\n";
-            }
-
-        }else if($type == 'error'){
-            list($code, $error) = $details;
-            $report  = "Error [{$code}]: {$error}"
-                     . " Time: " . date('d-m-Y h:i:s a', time()) . PHP_EOL;
-        }
-
-        return $report;
+      fwrite($fileHandle, $report);
+      fclose($fileHandle);
     }
 
-    private static function formatFileSize($size){
-        if($size > pow(1024,2)){
-            $size = ($size / pow(1024,2));  $rate = " MB";
-        }elseif($size > 1024){
-            $size = ($size / 1024);  $rate = " kB";
-        }else{
-            $rate = " Bytes";
-        }
-        return number_format($size,2,'.',',') . $rate;
+    return !empty($report);
+  }
+
+  private static function check_parameters() {
+    if(!static::$log_dir){
+      requires([
+        'LOG_DIR'
+      ]);
+
+      static::$log_dir = LOG_DIR;
     }
+  }
+
+  private static function composeReport($type, $details){
+    $report = null;
+
+    if($type == 'error'){
+      list($code, $message) = is_array($details) ? $details : ['--', $details];
+      $message = trim($message);
+
+      $report = date('Y-m-d H:i:s', time()) . " Error [{$code}]: {$message}" . PHP_EOL;
+    }
+
+    return $report;
+  }
+
+  private static function getLogFile($type){
+    return static::$log_dir . DIRECTORY_SEPARATOR . static::$files[$type];
+  }
 
 }

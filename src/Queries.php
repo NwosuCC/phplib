@@ -8,33 +8,42 @@ use mysqli as MySQLi;
 
 class Queries {
   private static $sql, $conn;
-  private static $show_errors = true, $callback = [];
+  private static $show_errors = true, $error_message = '', $callback = [];
+
   public static $result, $rows = [];
+
 
   public static function hideErrors(array $callback = []) {
     static::$show_errors = false;
+    static::$callback = [];
 
-    if(is_callable($callback[0])){
-      static::$callback = $callback;
+    // Extract $callback values
+    $function = $callback['function'] ?? $callback[0] ?? null;
+    $parameters = $callback['parameters'] ?? $callback[1] ?? [];
+
+    // If callable, store the $callback values for future call in static::throwError()
+    if(is_callable($function)){
+      static::$callback = [
+        'function' => $function, 'parameters' => $parameters
+      ];
     }
   }
 
-  private static function throwError($message){
-    // First, log error
-    // ...
+  public static function getErrorMessage() {
+    return static::$error_message ? get_class() . ': ' . static::$error_message : '';
+  }
 
+  private static function throwError(){
     if(static::$show_errors){
-      throw new Exception($message);
+      throw new Exception(static::getErrorMessage());
     }
-    else {
-      if(static::$callback){
-        try {
-          list($block_function, $block_params) = static::$callback;
-
-          return call_user_func_array($block_function, $block_params);
-        }
-        catch (Exception $e) {}
+    else if(static::$callback){
+      try {
+        return call_user_func_array(
+          static::$callback['function'], static::$callback['parameters']
+        );
       }
+      catch (Exception $e) {}
     }
 
     exit();
@@ -63,9 +72,8 @@ class Queries {
     });
 
     if($missing) {
-      static::throwError(
-        "Undefined Database parameters: " . implode(', ', $missing)
-      );
+      static::$error_message = "Undefined Database parameters: " . implode(', ', $missing);
+      static::throwError();
     }
   }
 
@@ -270,9 +278,8 @@ class Queries {
       return static::$result;
     }
     else {
-      static::throwError(
-        static::connection()->error."; Problem with Query \"".static::$sql."\"\n"
-      );
+      static::$error_message = static::connection()->error."; Problem with Query \"".static::$sql."\"\n";
+      static::throwError();
     }
   }
 
