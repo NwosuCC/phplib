@@ -8,7 +8,38 @@ use mysqli as MySQLi;
 
 class Queries {
   private static $sql, $conn;
+  private static $show_errors = true, $callback = [];
   public static $result, $rows = [];
+
+  public static function hideErrors(array $callback = []) {
+    static::$show_errors = false;
+
+    if(is_callable($callback[0])){
+      static::$callback = $callback;
+    }
+  }
+
+  private static function throwError($message){
+    // First, log error
+    // ...
+
+    if(static::$show_errors){
+      throw new Exception($message);
+    }
+    else {
+      if(static::$callback){
+        try {
+          list($block_function, $block_params) = static::$callback;
+
+          return call_user_func_array($block_function, $block_params);
+        }
+        catch (Exception $e) {}
+      }
+    }
+
+    exit();
+  }
+
 
   public static final function connection($db = '') {
     if(empty(static::$conn)){
@@ -32,7 +63,7 @@ class Queries {
     });
 
     if($missing) {
-      throw new Exception(
+      static::throwError(
         "Undefined Database parameters: " . implode(', ', $missing)
       );
     }
@@ -234,10 +265,12 @@ class Queries {
   private static function run($sql){
     static::$sql = $sql;
     static::$result = static::connection()->query(static::$sql);
+
     if (static::$result){
       return static::$result;
-    } else {
-      throw new Exception(
+    }
+    else {
+      static::throwError(
         static::connection()->error."; Problem with Query \"".static::$sql."\"\n"
       );
     }
