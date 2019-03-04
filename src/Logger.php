@@ -53,7 +53,12 @@ class Logger {
       list($code, $message) = is_array($details) ? $details : ['--', $details];
       $message = trim($message);
 
-      $report = date('Y-m-d H:i:s', time()) . " Error [{$code}]: {$message}" . PHP_EOL;
+      $remote_domain = $_SERVER['REMOTE_ADDR'] . ':' . $_SERVER['REMOTE_PORT'];
+      $request_time = $_SERVER['REQUEST_TIME'];
+
+      $request_info = " from {$remote_domain} at " . date('Y-m-d H:i:s', $request_time);
+
+      $report = date('Y-m-d H:i:s', time()) . " Error [{$code}]: {$message} == " . $request_info . PHP_EOL;
     }
 
     return $report;
