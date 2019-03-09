@@ -2,11 +2,34 @@
 
 namespace Orcses\PhpLib;
 
+use Orcses\PhpLib\Incs\CustomErrorHandler;
+use Orcses\PhpLib\Incs\HandlesError;
 
-class Upload {
+
+class Upload implements CustomErrorHandler {
+
+  use HandlesError;
+
+
   private static $upload_dir, $upload_url, $extensions, $max_size;
   private static $expected_file_type, $allowed_types, $no_exec = true;
   private static $file, $return_temp_file, $result, $more;
+
+
+  /**
+   * Middleware to register ErrorHandler
+   * @see CustomErrorHandler::registerErrorHandler() for more info
+   * @param array $callback
+   */
+  public static function registerErrorHandler(array $callback = []) {
+    // Do some stuff e.g require additional $callback parameters, implement other error handling options, etc
+    // ...
+
+    HandlesError::registerErrorHandler( $callback );
+
+    // ...
+  }
+
 
   private static function Slash() {
     return ['BEFORE' => 0, 'AFTER' => -1];
@@ -222,7 +245,7 @@ class Upload {
                 $mode  = chmod($_locPath, 0766);
 //                $owner = chown($_locPath, 'root');
                 $group = chgrp($_locPath, 'www-data');
-//                die(json_encode(['$_locPath' => $_locPath, '$_srvPath' => $_srvPath]));
+//                static::throwError(json_encode(['$_locPath' => $_locPath, '$_srvPath' => $_srvPath]));
 
                 $error_number = 0;
                 static::$result = [

@@ -2,51 +2,32 @@
 
 namespace Orcses\PhpLib;
 
-use Exception;
 use mysqli as MySQLi;
+use Orcses\PhpLib\Incs\CustomErrorHandler;
+use Orcses\PhpLib\Incs\HandlesError;
 
 
-class Queries {
+class Queries implements CustomErrorHandler {
+
+  use HandlesError;
+
   private static $sql, $conn;
-  private static $show_errors = true, $error_message = '', $callback = [];
 
   public static $result, $rows = [];
 
 
-  public static function hideErrors(array $callback = []) {
-    static::$show_errors = false;
-    static::$callback = [];
+  /**
+   * Middleware to register ErrorHandler
+   * @see CustomErrorHandler::registerErrorHandler() for more info
+   * @param array $callback
+   */
+  public static function registerErrorHandler(array $callback = []) {
+    // Do some stuff e.g require additional $callback parameters, implement other error handling options, etc
+    // ...
 
-    // Extract $callback values
-    $function = $callback['function'] ?? $callback[0] ?? null;
-    $parameters = $callback['parameters'] ?? $callback[1] ?? [];
+    HandlesError::registerErrorHandler( $callback );
 
-    // If callable, store the $callback values for future call in static::throwError()
-    if(is_callable($function)){
-      static::$callback = [
-        'function' => $function, 'parameters' => $parameters
-      ];
-    }
-  }
-
-  public static function getErrorMessage() {
-    return static::$error_message ? get_class() . ': ' . static::$error_message : '';
-  }
-
-  private static function throwError(){
-    if(static::$show_errors){
-      throw new Exception(static::getErrorMessage());
-    }
-    else if(static::$callback){
-      try {
-        return call_user_func_array(
-          static::$callback['function'], static::$callback['parameters']
-        );
-      }
-      catch (Exception $e) {}
-    }
-
-    exit();
+    // ...
   }
 
 
@@ -171,7 +152,8 @@ class Queries {
         $s = substr_count($value, ':?');   $c = count($params);
         if($s !== $c){
           $count = ($c > $s) ? 'Excess' : 'Insufficient';
-          die("$count parameters supplied for sub-query: '$value'");
+          static::$error_message = "$count parameters supplied for sub-query: '$value'";
+          static::throwError();
         }
         foreach ($params as $param){
           list($param) = Queries::escape([$param]);
@@ -293,8 +275,10 @@ class Queries {
     $labelsCount = count($labels);
 
     if($use_result and !empty($labels) and $queriesCount != $labelsCount){
-      die('Function run_multi(): Number of "Queries" combined in @param $queries' .
-        ' must match Number of "Labels" provided in @param $labels');
+      $a = 'Function run_multi(): Number of "Queries" combined in @param $queries' .
+        ' must match Number of "Labels" provided in @param $labels';
+      static::$error_message = $a;
+      static::throwError();
     }
 
     static::$sql = implode(';', $queries);
@@ -334,7 +318,8 @@ SELECT * FROM settings WHERE name = 'withdrawal' AND sub1 = 'limit' AND sub2 = '
         return ($conn->error == '') ? true : null;
       }
     }else{
-      die($conn->error."; Problem with Query \"".static::$sql."\"\n");
+      static::$error_message = $conn->error."; Problem with Query \"".static::$sql."\"\n";
+      static::throwError();
     }
   }
 
@@ -389,18 +374,25 @@ SELECT * FROM settings WHERE name = 'withdrawal' AND sub1 = 'limit' AND sub2 = '
   }
 
   public static function insert_check($table, $columns, $values, $where = '', $a_i_column = ''){
-    if(empty($where)){ die("Function insert_check() requires a 'WHERE...' clause"); }
+    if(empty($where)){
+      static::$error_message = "Function insert_check() requires a 'WHERE...' clause";
+      static::throwError();
+    }
+
     //$where .= "OR 0 = (SELEcT 1 FROM $table)";
     static::select($table,$columns,$where);
+
     if(!static::$result->num_rows) {
       return static::insert($table, $columns, $values, $a_i_column);
     }
+
     return FALSE;
   }
 
   public static function insert_new($table, $columns_values, $a_i_column = '', $update_values = []){
     if(!is_array($columns_values)){
-      die('Function insert() expects 2nd parameter to be Associative Array $columns_values');
+      static::$error_message = 'Function insert() expects 2nd parameter to be Associative Array $columns_values';
+      static::throwError();
     }
 
     $first_element = $columns_values[array_keys($columns_values)[0]];
@@ -440,7 +432,11 @@ SELECT * FROM settings WHERE name = 'withdrawal' AND sub1 = 'limit' AND sub2 = '
   }
 
   public function insert_select($tables,$columns,$where='', $a_i_column='',$truncate_tmp=FALSE){
-    if(!is_array($tables)){ die("function 'insert_select()' requires two(2) tables in an array."); }
+    if(!is_array($tables)){
+      static::$error_message = "function 'insert_select()' requires two(2) tables in an array.";
+      static::throwError();
+    }
+
     list($tableA,$tableB) = $tables;
     if(is_array($tableB)){ list($tableB,$tableC) = $tableB; }
     if(is_array($columns)){ list($columnsA,$columnsB) = $columns; }else{ $columnsA = $columnsB = $columns; }
@@ -521,7 +517,8 @@ SELECT * FROM settings WHERE name = 'withdrawal' AND sub1 = 'limit' AND sub2 = '
 
   public static function update($table, $update_values, $where, $limit = '') {
     if(empty($where)){
-      die("Function 'update()' requires a 'where' clause.");
+      static::$error_message = "Function 'update()' requires a 'where' clause.";
+      static::throwError();
     }
     if(is_array($update_values)){
       $update_values = implode(',', $update_values);
@@ -532,7 +529,8 @@ SELECT * FROM settings WHERE name = 'withdrawal' AND sub1 = 'limit' AND sub2 = '
 
   public static function update_new($table, $update_values, $where, $limit = '', $return_sql = false) {
     if(empty($where)){
-      die("Function 'update()' requires a 'where' clause.");
+      static::$error_message = "Function 'update()' requires a 'where' clause.";
+      static::throwError();
     }
 
     $update_values = static::prepare('u', $update_values);
@@ -562,9 +560,18 @@ SELECT * FROM settings WHERE name = 'withdrawal' AND sub1 = 'limit' AND sub2 = '
   }
 
   public function _delete($table,$where) {
-    if(empty($where)){ die("crumb(): Please, define a 'where' clause for this operation."); }
+    if(empty($where)){
+      static::$error_message = "crumb(): Please, define a 'where' clause for this operation.";
+      static::throwError();
+    }
+
     $sqdel = $this->run("DELETE FROM {$table} {$where}");
-    if ($sqdel){ return $this->conn->affected_rows; }else{ return FALSE; }
+
+    if ($sqdel){
+      return $this->conn->affected_rows;
+    }else{
+      return FALSE;
+    }
   }
 
   public function loadDataFile($table,$filePath,$fieldsTerm='',$fieldsEnclosed='',$linesTerm='',$ignoreLines='',$columns='',$setCols='',$a_i_column='') {

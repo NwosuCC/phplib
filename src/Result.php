@@ -37,8 +37,12 @@ Abstract class Result {
 
     if(!$error_number){
       $result = static::$reports[$function]['success'];
-      if(!empty($message_index)){ $result[1] = $result[1][$message_index]; }
-    }else{
+
+      if(!empty($message_index)){
+        $result[1] = $result[1][$message_index];
+      }
+    }
+    else{
       $result = static::$reports[$function]['error'][$error_number];
     }
 
@@ -49,6 +53,7 @@ Abstract class Result {
       $notice = $index_results;
     }
 
+    // Apply the $replaces on the stubs
     if(!empty($replaces) and is_array($replaces)){
       foreach ($replaces as $find => $replace){
         $result[1] = str_replace('{'.$find.'}', $replace, $result[1]);
@@ -58,6 +63,7 @@ Abstract class Result {
       $result[1] = [$result[1], $notice];
     }
 
+    // $result : [$internal_code, $message]
     return [$result, $info];
   }
 
@@ -72,13 +78,19 @@ Abstract class Result {
       return null;
   }*/
 
-  public static function dispatch($result, $info){
+  public static function dispatch($result, $info, $send = true){
     list($code, $message) = $result;
+
     $response = [
       'status' => static::status($code),  'code' => $code,
       'message' => $message,              'info' => $info
     ];
-    static::send_response($response);
+
+    if($send !== false){
+      static::send_response($response);
+    }
+
+    return $response;
   }
 
   private static function status($code){

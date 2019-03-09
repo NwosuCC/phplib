@@ -2,8 +2,15 @@
 
 namespace Orcses\PhpLib;
 
+use Orcses\PhpLib\Incs\CustomErrorHandler;
+use Orcses\PhpLib\Incs\HandlesError;
 
-class Validation {
+
+class Validation implements CustomErrorHandler {
+
+    use HandlesError;
+
+
     private static $failed_rule;
 
     // [Function name, [Argument variables names]]
@@ -32,8 +39,24 @@ class Validation {
         'r' => ['required', '{var} is required'],
     ];
 
+
+    /**
+     * Middleware to register ErrorHandler
+     * @see CustomErrorHandler::registerErrorHandler() for more info
+     * @param array $callback
+     */
+    public static function registerErrorHandler(array $callback = []) {
+      // Do some stuff e.g require additional $callback parameters, implement other error handling options, etc
+      // ...
+
+      HandlesError::registerErrorHandler( $callback );
+
+      // ...
+    }
+
+
     public static function clean($string) {
-		return stripslashes(htmlentities(trim($string)));
+	  	return stripslashes(htmlentities(trim($string)));
     }
 
     private static function get_arguments($field_parameters, $count){
@@ -252,7 +275,7 @@ class Validation {
     public static function stringLength($string, $arguments = []){
         list($min, $max) = $arguments;
         if(!$min and !$max){
-            die("Function 'string_length(string,min,max)': 2nd and/or 3rd Parameter(s) required.");
+            static::throwError("Function 'string_length(string,min,max)': 2nd and/or 3rd Parameter(s) required.");
         }
 
         $string = trim($string);
@@ -282,7 +305,7 @@ class Validation {
         if(count($arguments) ==1){ $arguments[1] = null; }
         list($way, $toFixed) = $arguments;
         if(empty($way)){
-            die("Function 'numberFormat(String $number, Int $way, Bool $toFixed)': 2nd Parameter required.");
+            static::throwError("Function 'numberFormat(String $number, Int $way, Bool $toFixed)': 2nd Parameter required.");
         }
         //$number = str_replace(',','',str_replace(' ','',trim($number)));
         $number = preg_replace('/[, ]+/','', trim($number));
@@ -305,7 +328,7 @@ class Validation {
     public static function currencyNumberFormat($number, $arguments = []){
         list($way) = $arguments;
         if(empty($way)){
-            die("Function 'currencyFormat(String $number, Int $way)': 2nd Parameter required.");
+            static::throwError("Function 'currencyFormat(String $number, Int $way)': 2nd Parameter required.");
         }
         list($valid, $returnValue) = static::numberFormat($number,$arguments);
         $errorMsg = '';
@@ -360,7 +383,7 @@ class Validation {
     public static function checkbox($value, $arguments = []){
         list($required, $defaultValue) = $arguments;
         if($required and $defaultValue == ''){
-            die("Function 'checkBox(String $value, Bool $required, String $defaultValue)': 2nd Parameter requires the 3rd.");
+            static::throwError("Function 'checkBox(String $value, Bool $required, String $defaultValue)': 2nd Parameter requires the 3rd.");
         }
 
         $valid = ($required) ? ($value == $defaultValue) : ($value != '');

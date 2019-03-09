@@ -38,6 +38,14 @@ class Utility
       $assoc_array_values[ $__parts[$key] ] = $index_array_values[] = $__array[ $old_keys[$key] ];
     }
 
+    // ToDo: use this instead of the above foreach
+    /*$assoc_array_values = array_intersect_key(
+      $__array, array_fill_keys($__parts,"")
+    );
+
+    $index_array_values = array_values( $assoc_array_values );*/
+
+
     return ($assoc) ? $assoc_array_values : $index_array_values;
   }
 
