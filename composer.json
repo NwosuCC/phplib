@@ -20,7 +20,7 @@
       "Orcses\\PhpLib\\": "src/"
     },
     "files": [
-      "src/misc/helpers.php"
+      "misc/helpers.php"
     ]
   },
   "extra": {
