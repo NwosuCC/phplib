@@ -5,6 +5,15 @@ namespace Orcses\PhpLib;
 
 class Utility
 {
+  public static function pad_array(array $array, int $pad_size, string $pad_value, bool $pad_right = true){
+    while(count($array) < $pad_size){
+      ($pad_right) ? array_push($array, $pad_value) : array_unshift($array, $pad_value);
+    }
+
+    return $array;
+  }
+
+
   // Off: If true, removes columns specified in $parts and returns the rest
   //      Else, returns only the columns specified in $parts
   public static function array_pick(array $__parts, $__array, bool $off = false, bool $assoc = true)
