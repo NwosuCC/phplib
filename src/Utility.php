@@ -49,15 +49,18 @@ class Utility
     return ($assoc) ? $assoc_array_values : $index_array_values;
   }
 
+
   public static function clean($string){
     return trim(htmlspecialchars(stripslashes($string)));
   }
+
 
   public static function hash($vars, $start = '', $length = ''){
     $start = (is_numeric($start)) ? intval($start) : 13;
     $length = (is_numeric($length)) ? intval($length) : 9;
     return substr(sha1($vars.microtime()), $start, $length);
   }
+
 
   public static function make_password($vars){
     $salt_1  = substr(sha1($vars), 1, 22);
@@ -71,54 +74,62 @@ class Utility
     return crypt($vars, '$2a$09$'.$crypt_BlowFish_salt.'$');
   }
 
+
   public static function make_id($type, $vars, $start = '', $length = '', $table_col = []){
-    $attempts = 1;   $max_attempts = 5;
+    $attempts = 1;
+    $max_attempts = 5;
+
     while(empty($id) and $attempts < $max_attempts){
       switch ($type){
         case 'id' : {
           if($table_col){
             list($table, $column) = $table_col;
             $exists = true;
+
             while($exists and $attempts++ < $max_attempts){
               $id = static::hash($type.$vars, $start, $length);
               $where = "WHERE $column = '$id'";
               $exists = Queries::select($table, $column, $where)->first();
             }
-          } // Else, use hash() function above
+          } // Else, use hash() function above OR better still uuid()
         } break;
 
         case 'pw' : {
-          $id =  static::make_password($type.$vars);
+          $id = static::make_password($type.$vars);
         } break;
       }
     }
     return (isset($id)) ? $id : null;
   }
 
+
   public static function exists_id($table, $column_name, $id, $status = ''){
     list($column_name, $id) = Queries::escape([$column_name, $id]);
+
     $where = "WHERE $column_name = '$id'";
+
     if($status !== ''){
       $where .= ($status !== '0') ? " AND status = 1" : " AND status BETWEEN 1 AND 2";
     }
+
     return Queries::select($table, '', $where)->to_array();
   }
 
-  /** @deprecated */
-  public static function strip_guarded_columns($remove_columns, $row){
-    return static::array_pick($remove_columns, $row, true);
-  }
 
   public static function pluck_columns($rows, $columns){
     if(!is_array($rows)){ $rows = []; }
+
     $plucked_rows = [];
+
     foreach($rows as $r => $row){
       if($columns and is_array($columns)){
         foreach($columns as $c => $column){ $plucked_rows[$column][] = $row[$column]; }
       }
     }
+
     return $plucked_rows;
   }
+
 
   public static function html_table_headers($html_table_headers, $db_table_fields){
     if(!is_array($html_table_headers)){ $html_table_headers = []; }
@@ -138,6 +149,7 @@ class Utility
     }
     return $html_table_headers;
   }
+
 
   /**
    * @author      Aidan Lister <aidan@php.net>

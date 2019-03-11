@@ -4,18 +4,30 @@ namespace Orcses\PhpLib;
 
 
 Abstract class Result {
+  private static $result, $info;
+
   private static $reports;
+
+  public static function prepareAndSend($data) {
+    static::prepare($data);
+
+    static::dispatch();
+  }
+
+
+  public static function sendPrepared(array $result, array $info) {
+    self::$result = $result;
+    self::$info = $info;
+
+    static::dispatch();
+  }
+
 
   public static function prepare($result){
     global $_REPORTS;
     static::$reports = $_REPORTS;
     $notice = [];
 
-    /*if(is_array($result) and count($result) >= 2){
-        if(!isset($result[2])){ $result[2] = []; }
-    }else{
-        return null;
-    }*/
     if(!is_array($result) or count($result) < 2){
       return null;
     }
@@ -41,15 +53,26 @@ Abstract class Result {
       if(!empty($message_index)){
         $result[1] = $result[1][$message_index];
       }
+
+      if(empty($result[2])){ // Http Success Code
+        $result[2] = 200;
+      }
     }
     else{
       $result = static::$reports[$function]['error'][$error_number];
+
+      if(empty($result[2])){ // Http Error Code
+        $result[2] = static::$reports[$function]['error']['http_error_code'] ?? 400;
+      }
     }
 
     if(isset($indices)){
       $notice = static::$reports[$function]['error'];
       $index_results = [];
-      foreach($indices as $index){ $index_results[] = $notice[$index]; }
+
+      foreach($indices as $index){
+        $index_results[] = $notice[$index];
+      }
       $notice = $index_results;
     }
 
@@ -63,54 +86,43 @@ Abstract class Result {
       $result[1] = [$result[1], $notice];
     }
 
-    // $result : [$internal_code, $message]
-    return [$result, $info];
+    // self::$result : [$internal_code, $message, $http_status_code]
+    self::$result = $result;
+    self::$info = $info;
+
+    return [self::$result, self::$info];
   }
 
-  /*public static function get_components($result){
-      $indices = chunk_split($result[0], 2);
-      list($report_code, $error_number) = $indices;
-      foreach (static::$reports as $report_index => $report){
-          if($report_code == $report['code']){
-              return [$report_index, $error_number];
-          }
-      }
-      return null;
-  }*/
 
-  public static function dispatch($result, $info, $send = true){
-    list($code, $message) = $result;
+  protected static function dispatch(bool $send = true){
+    list($code, $message, $http_status_code) = static::$result;
 
     $response = [
-      'status' => static::status($code),  'code' => $code,
-      'message' => $message,              'info' => $info
+      'status' => static::status($code),
+      'code' => $code,
+      'message' => $message,
+      'info' => static::$info,
     ];
 
-    if($send !== false){
-      static::send_response($response);
+    if($send){
+      Response::send($http_status_code, $response);
     }
 
-    return $response;
+    return [$http_status_code, $response];
   }
 
-  private static function status($code){
+
+  protected static function status($code){
     return (static::successful($code)) ? 'Success' : 'Error';
   }
 
+
   public static function successful($result){
     $code = (is_array($result)) ? $result[0] : $result;
+
     $success_codes = ['0', '00', '000'];
-    return (in_array($code, $success_codes));
-  }
 
-  private static function send_response($response){
-    /* NOTE:
-     * Webpack devServer proxy now takes care of the CORS error even without the (otherwise required) headers below
-     */
-//      header('Access-Control-Allow-Origin: http://localhost:8080');
-//      header('Access-Control-Allow-Headers: Content-Type');
-
-    die(json_encode($response));
+    return in_array($code, $success_codes);
   }
 
 }

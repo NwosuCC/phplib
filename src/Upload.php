@@ -11,23 +11,23 @@ class Upload implements CustomErrorHandler {
   use HandlesError;
 
 
+  private static $error_handler;
+
   private static $upload_dir, $upload_url, $extensions, $max_size;
+
   private static $expected_file_type, $allowed_types, $no_exec = true;
+
   private static $file, $return_temp_file, $result, $more;
 
 
-  /**
-   * Middleware to register ErrorHandler
-   * @see CustomErrorHandler::registerErrorHandler() for more info
-   * @param array $callback
-   */
-  public static function registerErrorHandler(array $callback = []) {
-    // Do some stuff e.g require additional $callback parameters, implement other error handling options, etc
-    // ...
+  // See CustomErrorHandler::setErrorHandler() for more info
+  public static function setErrorHandler(array $callback = []) {
+    static::$error_handler = $callback;
+  }
 
-    HandlesError::registerErrorHandler( $callback );
-
-    // ...
+  // See CustomErrorHandler::getErrorHandler() for more info
+  public static function getErrorHandler() {
+    return static::$error_handler;
   }
 
 
@@ -89,18 +89,31 @@ class Upload implements CustomErrorHandler {
 
   private static function initialize_variables($upFile, $parameters){
     $values = array_values($parameters);
+
     list($client, $post_key, $file_name, $upload_directory, $upload_url, $file_type, $allowed_types) = $values;
+
     $mimes_check = (!empty($file_type) and !empty($allowed_types));
 
-    $required_vars = [
-      'client' => 1, 'post_key' => 2, 'file_name' => 3, 'mimes_check' => 4,
+    $required_vars = [ // and their corresponding error_number
+      'client' => 1,
+      'post_key' => 2,
+      'file_name' => 3,
+      'mimes_check' => 4,
       'upload_directory' => 11
     ];
+
     foreach ($required_vars as $var => $number){
       if($var === 'name'){
-        if(empty($upFile[$var])){ $error_number = $number;  break; }
-      }else{
-        if(empty($$var)){ $error_number = $number;  break; }
+        if(empty($upFile[$var])){
+          $error_number = $number;
+          break;
+        }
+      }
+      else{
+        if(empty($$var)){
+          $error_number = $number;
+          break;
+        }
       }
     }
 
@@ -118,16 +131,25 @@ class Upload implements CustomErrorHandler {
       static::$allowed_types = $allowed_types;
       static::$extensions = static::getExtensions();
       static::$max_size = static::getAllowedFileSizes();
+
       $error_number = 0;
     }
+
     return $error_number;
   }
 
   private static function end_process($error_number){
-    if(!is_int($error_number)){ $error_number = 10; }
-    elseif($error_number < 10){ $error_number = '0' . $error_number; }
+    if(!is_int($error_number)){
+      $error_number = 10;
+    }
+    elseif($error_number < 10){
+      $error_number = '0' . $error_number;
+    }
+
     $message = ($error_number === '00') ? static::$result : static::$error_messages[$error_number];
+
     $message = str_replace('{more}', static::$more, $message);
+
     return [$error_number, $message];
   }
 
@@ -208,7 +230,9 @@ class Upload implements CustomErrorHandler {
    */
   public static function upload_file(){
     $file = static::$file;
+
     if($file['error'] == 0){
+
       if($file['name'] != ''){
         $fileName_r = explode('.', $file['name']);
         $extension = strtolower(end($fileName_r));
@@ -217,13 +241,16 @@ class Upload implements CustomErrorHandler {
 
         if($fileType){
           $allowed_file_size = self::$max_size[$fileType];
+
           if($file['size'] <= $allowed_file_size){
+
             if(static::$return_temp_file){
               // Return only the Temp file
               // An example is running 'fputcsv ..' on a temp csv file without storing the file
               static::$result = $file;
               $error_number = 0;
-            }else{
+            }
+            else{
               if(!$file['storage_unique_key']){
                 $file['storage_unique_key'] = md5(microtime());
               }
@@ -239,13 +266,16 @@ class Upload implements CustomErrorHandler {
               $_srvPath = $server_path . $hashed_file_name;
 
               // Delete existing file then replace with new upload
-              if(file_exists($_locPath)){ unlink($_locPath); }
+              if(file_exists($_locPath)){
+                unlink($_locPath);
+              }
 
               if(move_uploaded_file($file['tmp_name'], $_locPath)){
                 $mode  = chmod($_locPath, 0766);
-//                $owner = chown($_locPath, 'root');
+                // $owner = chown($_locPath, 'root');
                 $group = chgrp($_locPath, 'www-data');
-//                static::throwError(json_encode(['$_locPath' => $_locPath, '$_srvPath' => $_srvPath]));
+
+                // static::throwError(json_encode(['$_locPath' => $_locPath, '$_srvPath' => $_srvPath]));
 
                 $error_number = 0;
                 static::$result = [
@@ -273,7 +303,8 @@ class Upload implements CustomErrorHandler {
       }
 
     }else{
-      $error_number = 11;   static::$more = $file['error'];
+      $error_number = 11;
+      static::$more = $file['error'];
     }
 
     return $error_number;
