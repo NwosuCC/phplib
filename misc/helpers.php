@@ -197,12 +197,20 @@ if (! function_exists('config')) {
    */
   function config($key)
   {
-    $config_dir = constant('CONFIG_DIR') ?? constant('APP_DIR') .'/config' ?? '';
+    switch(true){
+      case defined('CONFIG_DIR') : {
+        $config_dir = constant('CONFIG_DIR'); break;
+      }
+      case defined('APP_DIR') : {
+        $config_dir = constant('APP_DIR') .'/config'; break;
+      }
+      default : { $config_dir = ''; }
+    }
 
     $config_file = $config_dir . '/app.php';
 
     try {
-      $config = require_once (''.$config_file.'');
+      $config = require (''.$config_file.'');
 
       return arr_get($key, $config);
     }
