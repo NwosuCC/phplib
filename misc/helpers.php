@@ -88,9 +88,12 @@ if (! function_exists('dd')) {
    *
    * @param  mixed  $data
    */
-  function dd($data)
+  function dd(...$data)
   {
-    pr($data, true);
+    foreach ($data as $v) {
+      pr($v, true);
+    }
+
     exit();
   }
 }
