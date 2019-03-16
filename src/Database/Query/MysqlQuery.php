@@ -4,6 +4,7 @@ namespace Orcses\PhpLib\Database\Query;
 
 use mysqli as MySQLi;
 use Orcses\PhpLib\Database\Connection\MysqlConnector;
+use Orcses\PhpLib\Database\Schema\Schema;
 use Orcses\PhpLib\Incs\HandlesErrors;
 use Orcses\PhpLib\Incs\HandlesError;
 use Orcses\PhpLib\Utility\Str;
@@ -15,19 +16,22 @@ class MysqlQuery implements HandlesErrors {
   use HandlesError;
 
 
+  private static $error_handler;
+
   /**
    * @var MySQLi instance
    */
   private $connection;
 
-  private static $sqlMethod, $error_handler;
+  private $table, $id_column, $a_i_column;
 
-  private static $caller = '', $recursive = [];
+  private $caller = '';
 
-  private static $sql, $where, $orWhere, $order, $limit;
-  private static $multi = [], $isNewQuery = false;
+  private $sql, $where, $orWhere, $order, $limit, $update_on_insert_fail;
 
-  public static $result, $rows = [], $count = 0, $assoc = false;
+  private $sqlMethod, $multi = [], $isNewQuery = false, $assoc = false;
+
+  public  $result, $rows = [], $count = 0;
 
 
   public function __construct(MysqlConnector $connector = null) {
@@ -48,29 +52,52 @@ class MysqlQuery implements HandlesErrors {
   }
 
 
-  // See CustomErrorHandler::setErrorHandler() for more info
+  // See HandlesErrors::setErrorHandler() for more info
   public static function setErrorHandler(array $callback = []) {
     static::$error_handler = $callback;
   }
 
 
-  // See CustomErrorHandler::getErrorHandler() for more info
+  // See HandlesErrors::getErrorHandler() for more info
   public static function getErrorHandler() {
     return static::$error_handler;
   }
 
+  public function table(string $table = ''){
+    if($table){
+      $this->table = $table;
+    }
+
+    return $this->table;
+  }
+
+  public function idColumn(string $column = ''){
+    if($column){
+      $this->id_column = $column;
+    }
+
+    return $this->id_column = $column;
+  }
+
+  public function autoIncrementColumn(string $column = ''){
+    if($column){
+      $this->a_i_column = $column;
+    }
+
+    return $this->a_i_column = $column;
+  }
 
   /**
    * Prepares the query for execution. Escapes single- and double-quotes
    * @param array $values The values to escape
    * @return array
    */
-  public static function escape(array $values){
+  public function escape(array $values){
     $escaped_values = [];
 
     foreach($values as $key => $value){
       if(is_array($value)){
-        $escaped_values[ $key ] = static::escape($value);
+        $escaped_values[ $key ] = $this->escape($value);
       }
       else{
         $value = stripslashes( htmlspecialchars( trim($value)));
@@ -274,7 +301,7 @@ class MysqlQuery implements HandlesErrors {
       }
 
       if( ! $value_column && ! $value_sub_query ){
-        // Then it must be a normal value
+        // Then it must be an ordinary value
 
         $value_quote = $quotes['value'];
 
@@ -293,7 +320,7 @@ class MysqlQuery implements HandlesErrors {
    * @param string $value
    * @return string
    */
-  private static function stripTrailingSemicolon($value) {
+  public static function stripTrailingSemicolon($value) {
     return Str::stripTrailingChar($value, ';');
   }
 
@@ -335,74 +362,116 @@ class MysqlQuery implements HandlesErrors {
   /**
    * Holds the name of a specific method that calls another more generic one
    */
-  private static function caller() {
-    $caller = static::$caller;
-    return (static::$caller = '') ?: $caller;
+  private function caller() {
+    $caller = $this->caller;
+    return ($this->caller = '') ?: $caller;
+  }
+
+  /**
+   * Returns whether or not to fetch results as array. Default is false
+   */
+  private function assoc() {
+    $assoc = $this->assoc;
+
+    return ($this->assoc = '') ?: $assoc;
   }
 
   /**
    * Returns the stored main query clause
    */
   public function getSql(){
-    $sql = static::$sql;
-    return (static::$sql = '') ?: $sql;
+//    $sql = $this->sql;
+//    return ($this->sql = '') ?: $sql;
+    return $this->sql;
   }
 
   /**
    * Returns the stored 'OR' where clause
    */
   public function getOrWhere(){
-    $orWhere = static::$orWhere;
-    return (static::$orWhere = '') ?: $orWhere;
+    $orWhere = $this->orWhere;
+    return ($this->orWhere = '') ?: $orWhere;
   }
 
   /**
    * Returns the stored where clause including the 'OR' where clause
    */
   public function getWhere(){
-    $where = static::$where;
-    return (static::$where = '') ?: $where .' '. $this->getOrWhere();
+    $where = $this->where;
+
+    return ($this->where = '') ?: $where .' '. $this->getOrWhere();
+  }
+
+  /**
+   * Returns the stored order clause
+   */
+  public function getOrder(){
+    $order = $this->order;
+
+    return ($this->order = '') ?: $order;
+  }
+
+  /**
+   * Returns the stored where clause
+   */
+  public function getLimit(){
+    $limit = $this->limit;
+
+    return ($this->limit = '') ?: $limit;
   }
 
   /**
    * Returns the stored query including the where clause
    */
   public function queryString() {
-    return $this->getSql() .' '. $this->getWhere();
+    return $this->getSql();
   }
 
   /**
-   * Returns the MySQL method to call. One of ['query', 'multi_query']
+   * Returns the MySQL method to call in the next execution. One of ['query', 'multi_query']
    */
   public function sqlMethod() {
-    $sqlMethod = static::$sqlMethod;
-    return (static::$sqlMethod = '') ?: $sqlMethod;
+    $sqlMethod = $this->sqlMethod;
+
+    return ($this->sqlMethod = '') ?: $sqlMethod;
   }
 
   /**
    * Begin a database transaction
    */
-  public static function start_txn() {
-    static::$sql = "START TRANSACTION";
-    static::run_single();
+  public function start_txn() {
+    $this->sql = "START TRANSACTION";
+
+    $this->run();
   }
 
   /**
    * End a database transaction
    * @param bool $ok If true, commits the transaction, else, rolls back
    */
-  public static function end_txn($ok) {
-    static::$sql = ($ok === true) ? "COMMIT" : "ROLLBACK";
-    static::run_single();
-    static::close();
+  public function end_txn($ok) {
+    $this->sql = ($ok === true) ? "COMMIT" : "ROLLBACK";
+
+    $this->run();
+
+    $this->connection->close();
   }
 
+  /**
+   * Executes the stored query. Single query by default except another is explicitly set vie sqlMethod()
+   * @return $this
+   */
   private function run(){
-    static::$result = call_user_func(
-      [$this->connection, $this->sqlMethod()], $sql = $this->queryString()
+    if( !$method = $this->sqlMethod()){
+      $method = 'query';
+      $this->multi = [];
+    }
+
+    $this->result = call_user_func(
+      [$this->connection, $method], $sql = $this->queryString()
     );
 
-    if ( ! static::$result){
+    if ( ! $this->result){
       static::throwError(
         $this->connection->error."; Problem with Query \"". $sql ."\"\n"
       );
@@ -411,90 +480,102 @@ class MysqlQuery implements HandlesErrors {
     return $this;
   }
 
-  /**
-   * Executes the stored single query
-   * @return $this
-   */
-  private static function run_single(){
-    static::$multi = [];
-
-    static::$sqlMethod = 'query';
-
-    return (new static)->run();
-  }
 
   /**
    * Executes the stored multiple queries
    * @return $this
    */
-  private static function run_multi(){
+  private function run_multi(){
+    $this->sqlMethod = 'multi_query';
 
-    static::$sqlMethod = 'multi_query';
-
-    return (new static)->run();
+    return $this->run();
   }
+
 
   /**
    * Fetches the affected rows after single or multiple queries are executed
    * @return void
    */
   private function fetch(){
-    $connection = $this->connection;
+    $function = $this->assoc() ? 'fetch_assoc' : 'fetch_object';
 
-    $function = static::$assoc ? 'fetch_assoc' : 'fetch_object';
-
-    if( ! static::$multi ){
-      // Single Query
-
-      if ( !empty(static::$result->num_rows)){
-        while( $row = static::$result->$function() ){
-          $fetch[] = $row;
+    if( ! $this->multi ){
+      // =============================================================================
+      // Single Query Result
+      // --------------------------------------------------------------------------
+      if ( !empty($this->result->num_rows)){
+        while($row = call_user_func([$this->result, $function])){
+          $result_set[] = $row;
         }
       }
 
     }
     else {
-      // Multi Query
-      static::$isNewQuery = false;
+      // =============================================================================
+      // Multi Query Result
+      // --------------------------------------------------------------------------
+      $this->isNewQuery = false;
 
+      $connection = $this->connection;
+
+      // Retrieve the multi-query parameters previously stored in multi_queries()
       $keys = ['queries', 'labels', 'use_result'];
 
-      list(static::$sql, $labels, $use_result) = Utility::array_pick($keys, static::$multi, false, false);
+      list($this->sql, $labels, $return_result) = Arr::pickOnly($this->multi, $keys, false);
 
-      $nn = 1;
+      $queries = explode(';', $this->sql);
+      $labels = array_reverse($labels);
+      $count = count($queries);
+
+
+      // Retrieve the result sets and store them in an array using the $labels as keys
+      $result_set = $return_result ? [] : 0;
+
       do {
-        if($nn > 7) dd($nn, $connection->error);
+        $loop_index = (isset($loop_index)) ? ++$loop_index : 0;
 
-        if($connection->more_results() and $connection->next_result()){
-          if($result = $connection->store_result()){
-            $group = (isset($group)) ? ++$group : 0;
+        $label = !empty($labels) ? $labels[ $loop_index ] : $loop_index;
 
-            if(!isset($fetch)){
-              $fetch = $use_result ? [] : 0;
+        $more_results = $connection->more_results();
+        $next_result = $more_results ? $connection->next_result() : false;
+        $stored_result = $more_results ? $connection->store_result() : false;
+
+        $result_retrieved = ($stored_result or $next_result);
+
+
+        if($more_results and $result_retrieved){
+
+          if($stored_result){
+            // Select Operation
+            if($return_result){
+              while($row = call_user_func([$stored_result, $function])){
+                $result_set[ $label ][] = $row;
+              }
+            }
+            else {
+              $result_set[ $label ] = $connection->affected_rows;
             }
 
-            $key = !empty($labels) ? $labels[$group] : $group;
-
-            while($row = $result->$function()){
-              ($use_result) ? $fetch[ $key ][] = $row : $fetch = $group + 1;
-            }
-
-            $result->free();
+            $stored_result->free();
+          }
+          else if($connection->affected_rows >= 0 && $connection->field_count === 0){
+            // Insert|Update Operation OR Create|Drop Database|Table, etc
+            $result_set[ $label ] = $connection->affected_rows;
+          }
+          else {
+            // Not Yet Unclassified
+            $result_set[ $label ] = !$connection->error;
           }
         }
 
-//      } while( $connection->more_results() and $connection->next_result() );
-      } while( $nn < 10 and $connection->error == '' and $connection->more_results() and $connection->next_result() );
+      } while(
+        ($connection->more_results() and $result_retrieved and --$count > 0)
+      );
     }
 
-    if(isset($fetch)){
-      static::$count = (is_array($fetch)) ? count(static::$rows = $fetch) : $fetch;
+    if(isset($result_set)){
+      $this->count = (is_array($result_set)) ? count($this->rows = $result_set) : $result_set;
     }
-    else {
-      //  For operations like 'CREATE Table' which return (bool) FALSE on both 'Success' and 'Failure'
-      static::$result = ($connection->error == '') ? true : null;
-    }
-//    dd(static::$sql, $labels ?? '', static::$count, static::$rows);
   }
 
   /**
@@ -504,17 +585,16 @@ class MysqlQuery implements HandlesErrors {
    * @param bool $use_result  If true, stores the query group rows, else, stores the query group count
    * @return $this
    */
-  public static function multi_queries(array $queries, array $labels = [], bool $use_result = false){
+  public function multi_queries(array $queries, array $labels = [], bool $use_result = false){
     // Validate $queries : array of strings.
 
+    $this->isNewQuery = true;
 
-    static::$isNewQuery = true;
-
-    $queries = Utility::stripEmpty($queries);
-    $queries = array_map([static::class, 'stripTrailingSemicolon'], $queries);
+    $queries = Arr::stripEmpty($queries);
+    $queries = Arr::each($queries, [static::class, 'stripTrailingSemicolon']);
     $queriesCount = count($queries);
 
-    $labels = Utility::stripEmpty($labels);
+    $labels = Arr::stripEmpty($labels);
     $labelsCount = count($labels);
 
     if($use_result and !empty($labels) and $queriesCount != $labelsCount){
@@ -524,17 +604,17 @@ class MysqlQuery implements HandlesErrors {
       );
     }
 
-    static::$sql = implode('; ', $queries);
+    $this->sql = implode('; ', $queries);
 
-    static::$multi = [
-      'queries' => static::$sql, 'labels' => $labels, 'use_result' => $use_result
+    $this->multi = [
+      'queries' => $this->sql, 'labels' => $labels, 'use_result' => $use_result
     ];
 
-    return new static();
+    return $this;
   }
 
 
-  private static function validateQueryValues(array $values, string $query = ''){
+  private function validateQueryValues(array $values, string $query = ''){
     $values_count = count($values);
 
     if( ! $query){
@@ -554,8 +634,8 @@ class MysqlQuery implements HandlesErrors {
   }
 
 
-  private static function setQueryValues(array $values, string $query = ''){
-    $valid_args = static::validateQueryValues($values, $query);
+  private function setQueryValues(array $values, string $query = ''){
+    $valid_args = $this->validateQueryValues($values, $query);
 
     if( ! $valid_args){
       $error = 'MysqlQuery::setQueryValues requires arguments:'
@@ -570,7 +650,7 @@ class MysqlQuery implements HandlesErrors {
         ]
       ]);*/
 
-      if($caller = static::caller()){
+      if($caller = $this->caller()){
         $error .= " called in ". static::class ."::{$caller}()";
       }
 
@@ -588,7 +668,7 @@ class MysqlQuery implements HandlesErrors {
       $is_query = ($pos_query !== false and $pos_value === $pos_query);
 
       if( ! $is_query ){
-        list($var) = static::add_quotes_Values( static::escape([$var]) );
+        list($var) = $this->add_quotes_Values( $this->escape([$var]) );
       }
 
       $pattern = "/\?[q]?{$number}([^0-9]|$)/";
@@ -608,39 +688,35 @@ class MysqlQuery implements HandlesErrors {
   }
 
 
-  public static function whereRaw(array $values, string $query = ''){
-    static::$caller = static::caller() ?: 'whereRaw';
-    static::$where = 'WHERE ' . static::setQueryValues($values, $query);
+  public function rawQuery(array $values, string $query = ''){
+    $this->caller = $this->caller() ?: 'rawQuery';
 
-    return new static;
+    return $this->setQueryValues($values, $query);
   }
 
 
-  public static function rawQuery(array $values, string $query = ''){
-    static::$caller = static::caller() ?: 'rawQuery';
-    return static::setQueryValues($values, $query);
+  public function whereRaw(array $values, string $query = ''){
+    $this->caller = $this->caller() ?: 'whereRaw';
+
+    $this->where = 'WHERE ' . $this->setQueryValues($values, $query);
+
+    return $this;
   }
 
 
-  public static function orWhere(array $columns_values){
+  public function orWhere(array $columns_values){
     $value = $or_values = [];
 
     foreach($columns_values as $column => $value){
-      // Track the Recursive calls that follow
-      static::$recursive[] = 0;
-
-      $keys = array_keys( static::$recursive );
-      $current_depth = count( $keys );
-      $current_turn = static::$recursive[ $current_depth - 1 ];
 
       foreach ($value as $c => $val){
         $next_val = is_numeric($c) ? $val : [$c => $val];
+
         $where_clause = '';
 
         if($next_val){
-          static::$recursive[ $current_depth - 1 ] = ++$current_turn;
+          $where_clause = $this->where($next_val)->getWhere();
 
-          $where_clause = static::whereAssoc($next_val)->getWhere();
           $where_clause = trim( str_replace('WHERE', '', $where_clause));
         }
 
@@ -655,15 +731,11 @@ class MysqlQuery implements HandlesErrors {
           $value[] = $where_clause;
         }
       }
-
-      $column = "$column|b";
     }
 
-//    return [$column, $value, $or_values];
-
     // Must be a processed OR group
-    $value = Utility::stripEmpty($value);
-    $or_values = Utility::stripEmpty($or_values);
+    $value = Arr::stripEmpty($value);
+    $or_values = Arr::stripEmpty($or_values);
 
     foreach($or_values as $i => $or_val){
       $or_values[ $i ] = '('. $or_val .')';
@@ -674,28 +746,32 @@ class MysqlQuery implements HandlesErrors {
     if($value){
       $or_values = ($or_values ? ' OR ' : '') . $or_values;
       $value = implode(' AND ', $value);
+
       $value = $value ? 'OR ('. $value . $or_values .')' : '';
     }
 
-    static::$orWhere = $value;
+    $this->orWhere = $value;
 
-    return new static();
+    return $this;
   }
 
 
-  public static function whereAssoc(array $columns_values){
+  public function where(array $columns_values){
     if( ! $columns_values){
-      static::throwError('MysqlQuery::where() Example: ["name" => $name, "email" => $email], ["3|v" => ["!=", "status"]]');
+      static::throwError(
+        'MysqlQuery::where() Example: ["name" => $name, "email" => $email], ["3|v" => ["!=", "status"]]'
+      );
     }
 
     $ops = [
-      'equals' => ['=', '!=', '<', '<=', '>', '>='],
-      'in' => ['IN','NOT IN'],
-      'between' => ['BETWEEN','NOT BETWEEN'],
+      'equals' => $equals = ['=', '!=', '<', '<=', '>', '>='],
+      'in' => $in = ['IN','NOT IN'],
+      'equals_in' => $equals_in = array_merge( $equals, $in),
+      'between' => $between = ['BETWEEN','NOT BETWEEN'],
     ];
-    $ops['equals_in'] = array_merge( $ops['equals'], $ops['in'] );
 
     $where_array = $or_values = [];
+
 
     foreach($columns_values as $column => $value){
       $join = 'AND';
@@ -709,24 +785,26 @@ class MysqlQuery implements HandlesErrors {
 
       $column_is_blank = static::isBlank($column);
 
-      list($column, $column_type) = static::add_quotes_Columns($column);
+      list($column) = $this->add_quotes_Columns($column);
+
 
       if(!$join or $column_is_blank){
         $column = $operator = '';
+
       }
       else if( ! is_array($value)){
-        list($value) = static::add_quotes_Values([$value]);
+        list($value) = $this->add_quotes_Values([$value]);
+
       }
       else {
         $operator = strtoupper( trim( array_shift($value)));
 
-        $value = Arr::unwrap($value);
+        $value = $this->add_quotes_Values( Arr::unwrap($value) );
 
         if( in_array($operator, $ops['between']) ){
           $value = $value[0] .' AND '. $value[1];
         }
         else if( in_array($operator, $ops['equals_in']) ){
-          $value = static::add_quotes_Values($value);
 
           if(in_array($operator, $ops['in'])){
             $value = '(' . implode(',', $value) . ')';
@@ -737,35 +815,32 @@ class MysqlQuery implements HandlesErrors {
         }
       }
 
-      /*if(is_array($value) || $or_values){
-        // Must be a processed OR group
-        $value = Arr::stripEmpty($value);
-        $or_values = Arr::stripEmpty($or_values);
+      $join = count($where_array) ? "$join " : '';
 
-        foreach($or_values as $i => $or_val){
-          $or_values[ $i ] = '('. $or_val .')';
-        }
-
-        $or_values = implode(' OR ', $or_values);
-
-        if($value){
-          $or_values = ($or_values ? ' OR ' : '') . $or_values;
-          $value = ($value = implode(' AND ', $value)) ? '('. $value . $or_values .')' : '';
-        }
-      }*/
-
-      $where_array[] = (count($where_array) ? "$join " : '') . trim("$column $operator $value");
+      $where_array[] = $join . trim("$column $operator $value");
     }
 
-    static::$where = ($where_array) ? "WHERE " . implode(' ', $where_array) : '';
+    $this->where = ($where_array) ? "WHERE " . implode(' ', $where_array) : '';
 
-    return new static;
-  }
-
-  public function limit( int $length, int $start = 0 ){
-    static::$limit = " LIMIT {$start}, {$length}";
     return $this;
   }
+
+
+  public function orderBy( string $column, string $direction = 'ASC'){
+    $direction = strtoupper($direction) === 'DESC' ? 'DESC' : 'ASC';
+
+    $this->order = " ORDER BY {$column} {$direction}";
+
+    return $this;
+  }
+
+
+  public function limit( int $length, int $start = 0 ){
+    $this->limit = " LIMIT {$start}, {$length}";
+
+    return $this;
+  }
+
 
   /**
    * Returns all rows with only the specified columns
@@ -789,33 +864,34 @@ class MysqlQuery implements HandlesErrors {
 
 
   public function asArray() {
-    static::$assoc = true;
+    $this->assoc = true;
+
     return $this;
   }
 
   public function all(){
-    if(static::$multi){
-      if(static::$isNewQuery){
-        static::run_multi()->fetch();
+    if($this->multi){
+      if($this->isNewQuery){
+        $this->run_multi()->fetch();
       }
     }
     else {
-      static::run_single()->fetch();
+      $this->run()->fetch();
     }
 
-    return static::$rows;
+    return $this->rows;
   }
 
-  public static function count() {
-    return static::$result->num_rows;
+  public function count() {
+    return $this->multi ? count($this->all()) : $this->result->num_rows;
   }
 
   public function id(string $id_column = '') {
     $row = $this->first();
 
-    $valid_column = $row && (!empty($row['id']) || empty($row[ $id_column ]));
+    $valid_column = $row && (!empty($row['id']) || !empty($row[ $id_column ]));
 
-    $id = $valid_column ? $row['id'] ?? $row[ $id_column ] : null;
+    $id = $valid_column ? ($row['id'] ?? $row[ $id_column ]) : null;
 
     return $id ? ['id' => $id] : null;
   }
@@ -828,111 +904,294 @@ class MysqlQuery implements HandlesErrors {
     return ($rows = $this->all()) ? end($rows) : null;
   }
 
-  public function lastModifiedId($table, $columns = []){
-    $where = ['id = LAST_INSERT_ID()'];
-    return $this->select($table, $columns, $where)->last();
+
+  public function lastModifiedId($table, array $columns = [], string $id_column = ''){
+    $id_column = $this->add_quotes_Columns( $id_column ?: $this->idColumn() );
+
+    $this->where = ["{$id_column} = LAST_INSERT_ID()"];
+
+    return $this->select($table, $columns)->last();
   }
 
-  public static function select($table, Array $columns, Array $where = []){
-    $columns = empty($columns) ? ['*'] : $columns;
 
-    $columns = static::escape($columns);
+  public function lastWrittenRow($table, $columns, $a_i_column = ''){
+    $a_i_column = $this->add_quotes_Columns( $a_i_column ?: $this->autoIncrementColumn() );
 
-    list($columns) = static::add_quotes_Columns($columns, true);
+    $columns[] = $a_i_column;
 
-    $columns = implode(',', $columns);
+    $this->orderBy($a_i_column, 'desc');
 
-    if($where){
-      static::$caller = 'select';
-//      static::whereRaw( $where );
-      static::whereAssoc( $where );
+    $this->limit(1);
+
+    return $this->select($table, $columns)->first();
+  }
+
+
+  public function getLastParams($table, array $columns, string $a_i_column){
+    $lastInsertID = $lastRow = null;
+
+    if($rows = $this->count()){
+      $lastInsertID = $this->lastModifiedId($table, $columns, $a_i_column);
     }
 
-    static::$sql = "SELECT {$columns} FROM {$table}";
+    if($a_i_column){
+      $lastRow = static::lastWrittenRow($table, $columns, $a_i_column);
+    }
 
-    return new static;
+    return [
+      'rows' => $rows, 'lastInsertID' => $lastInsertID, 'lastRow' => $lastRow
+    ];
+  }
+
+
+  public function addIdColumn(array $columns){
+    $id = $this->idColumn();
+
+    if($id && ! array_search($id, $columns)){
+      $columns[] = $id;
+    }
+
+    return $columns;
+  }
+
+
+  public function select($table, Array $columns, Array $where = []){
+    $columns = empty($columns) ? ['*'] : $columns;
+
+    $columns = $this->escape($columns);
+
+    list($columns) = $this->add_quotes_Columns($columns, true);
+
+    $columns = implode(',', $this->addIdColumn($columns));
+
+    if($where){
+      $this->caller = 'select';
+      $this->whereRaw( $where );
+    }
+
+    $composition = [
+      'SELECT', $columns, 'FROM', $table, $this->getWhere(), $this->getOrder(), $this->getLimit()
+    ];
+
+    $this->sql = implode(' ', $composition);
+
+    return $this;
   }
 
 
   public function insertUnique($table, Array $columns, Array $values, Array $where = []){
-    $select_columns = $columns;
-    if( ! array_search('id', $select_columns)){ $select_columns[] = 'id'; }
+    $select_columns = $this->addIdColumn($columns);
 
     $record = $this->select($table, $select_columns, $where)->first();
 
     return $record ? false : $this->insert($table, $columns, $values);
   }
 
-  public function insertOrUpdate($table, Array $columns, Array $values, Array $update_values){
+
+  public function insertElseUpdate($table, Array $columns, Array $values, Array $update_values){
     if( !$update_values) {
       static::throwError('insertOrUpdate() requires parameter [Array $update_values]');
     }
 
-    $allUpdateValues = [];
+    $all_update_values = [];
 
     foreach ($update_values as $column => $value){
-      $value = $this->add_single_quotes($this->escape([$value]));
-      $allUpdateValues[] = "$column = " . array_shift($value);
+      $value = $this->add_quotes_Values( $this->escape([$value]));
+      $all_update_values[] = "$column = " . array_shift($value);
     }
-    $allUpdateValues = implode(',', $allUpdateValues);
 
-    static::$sql = " ON DUPLICATE KEY UPDATE {$allUpdateValues}";
+    $all_update_values = implode(',', $all_update_values);
+
+    $this->update_on_insert_fail = " ON DUPLICATE KEY UPDATE {$all_update_values}";
 
     return $this->insert($table, $columns, $values);
   }
 
-  public function insert($table, Array $columns, Array $values){
-    $this->validateVars('insert', [$columns, $values]);
 
-    $insert_columns = implode(',', $this->escape($columns));
+  public function insert($table, array $columns, array $values){
+    $columns = $this->add_quotes_Columns( $this->escape($columns) );
+
+    $insert_columns = implode(',', $columns);
+
+
     $values = $this->escape($values);
 
-    $allValues = [];
+    $insert_values = $rows = [];
+
     foreach ($values as $value){
-      $value = $this->add_single_quotes($this->escape($value));
-      $allValues[] = '(' . implode(',', $value) . ')';
+      $value = $this->add_quotes_Values( $this->escape($value) );
+
+      $insert_values[] = '(' . implode(',', $value) . ')';
     }
-    $allValues = implode(',', $allValues);
 
-    $sql_string = "INSERT INTO {$table} ({$insert_columns}) VALUES {$allValues}";
+    $rows = implode(',', $insert_values);
 
-    static::$sql = $sql_string . static::$sql;
+    $composition = [
+      'INSERT INTO', $table, $insert_columns, 'VALUES', $rows
+    ];
 
-//    static::run();
+    $this->sql = implode(' ', $composition);
 
-    return static::$result ? $this->getLastInsert($table, $columns)->first() : false;
+    if($this->update_on_insert_fail){
+      $this->sql .= $this->update_on_insert_fail;
+    }
+
+    $this->run();
+
+    return $this->result ? $this->lastModifiedId($table, $columns)->first() : false;
   }
 
-  public function update(string $table, Array $updates, Array $where) {
-    $this->validateVars('update', [$updates]);
 
+  public function update(array $updates) {
     $columns_values = [];
 
     foreach ($updates as $column => $value){
-      $quoted_column = $this->add_back_quotes([$column]);
-      $column = array_shift($quoted_column);
+      list($column) = $this->add_quotes_Columns( $this->escape([$column]) );
 
-      $value = $this->add_single_quotes( $this->escape([$value]) );
+      list($value) = $this->add_quotes_Values( $this->escape([$value]) );
 
-      $columns_values[] = "$column = " . array_shift($value);
+      $columns_values[] = "$column = $value";
     }
+
+    // To track and return the last updated row
+    $columns_values[] = "`last_insert_id` = LAST_INSERT_ID( last_insert_id )";
 
     $columns_values = implode(',', $columns_values);
 
-    $columns_values = "id = LAST_INSERT_ID(id), " . $columns_values;
+    if( ! $where = $this->getWhere()){
+      static::throwError("Please, define a 'WHERE...' clause for this operation.");
+    }
 
-    if($where = $where ? $this->whereRaw($where) : ''){
-      static::$sql = "UPDATE {$table} SET {$columns_values} {$where}";
+    $composition = [
+      'UPDATE', $table = $this->table(), 'SET', $columns_values, $where
+    ];
 
-//      static::run();
+    $this->sql = implode(' ', $composition);
 
-      if($result = $connection->affected_rows) {
-        list($table, $columns) = Schema::get($table);
-        return $this->getLastInsert($table, $columns)->first();
+    $this->run();
+
+    if($result = $this->connection->affected_rows) {
+      return $this->lastModifiedId($table, [], 'last_insert_id')->first();
+    }
+
+    return 0;
+  }
+
+
+  public function delete() {
+    if( ! $where = $this->getWhere()){
+      static::throwError("Please, define a 'WHERE...' clause for this operation.");
+    }
+
+    $composition = [
+      'DELETE FROM', $table = $this->table(), $where
+    ];
+
+    $this->sql = implode(' ', $composition);
+
+    $this->run();
+
+    return $this->connection->affected_rows;
+  }
+
+
+  // ToDo: Use array $options to collect user-specified arguments
+  public function load_data_file(
+    $file_path, $fields_term = '', $fields_enclosed = '',
+    $lines_term = '', $ignore_lines = '', $columns = '', $set_columns = '', $a_i_column = ''
+  )
+  {
+    if($fields_term !== '' || $fields_enclosed !== ''){
+
+      $fields_term_enclosure[] = "FIELDS";
+
+      if($fields_term !== ''){
+        $fields_term_enclosure[] = "TERMINATED BY '{$fields_term}'";
       }
+
+      if($fields_enclosed != ''){
+        $fields_term_enclosure[] = "OPTIONALLY ENCLOSED BY '{$fields_enclosed}'";
+      }
+
+      $fields_term_enclosure = implode(' ', $fields_term_enclosure);
+    }
+    else{
+      $fields_term_enclosure = '';
+    }
+
+    if($lines_term !== ''){
+      $lines_term = " LINES TERMINATED BY '{$lines_term}'";
+    }
+
+    if($ignore_lines !== ''){
+      $ignore_lines = " IGNORE {$ignore_lines} LINES";
+    }
+
+    $load_columns = ($columns !== '') ? "({$columns})" : '';
+
+    if($set_columns !== ''){
+      $set_columns = " SET {$set_columns}";
+    }
+
+//    $sql = "LOAD DATA LOCAL INFILE --local-infile=1 '{$file_path}' INTO TABLE {$table} {$fields_term_enclosure} {$lines_term} {$ignore_lines} {$loadCols} {$set_columns}";
+
+    $composition = [
+      'LOAD DATA LOCAL INFILE --local-infile=1', $file_path, 'INTO TABLE', $table = $this->table(),
+      $fields_term_enclosure, $lines_term, $ignore_lines, $load_columns, $set_columns
+    ];
+
+    $this->sql = implode(' ', $composition);
+
+    $this->run();
+
+    if ($this->result){
+      $columns = str_replace('@', '', $columns);
+
+      return $this->getLastParams($table, $columns, $a_i_column);
     }
 
     return false;
+  }
+
+
+  // ToDo: remove this to a separate Migrations class
+  public function create_database(string $name){
+    $name = $this->add_quotes_Columns( $name );
+
+    $this->sql = 'CREATE DATABASE ' . $name;
+
+    $this->run();
+
+    return $this->result;
+  }
+
+
+  // ToDo: remove this to a separate Migrations class
+  public function create_table(string $name, array $column_definitions){
+    $name = $this->add_quotes_Columns( $name );
+
+    // ToDo: can this be escaped without errors ??
+    $column_definitions = $this->escape($column_definitions);
+
+    $composition = [
+      'CREATE TABLE', $name, $column_definitions
+    ];
+
+    $this->sql = implode(' ', $composition);
+
+    $this->run();
+
+    return $this->result;
+  }
+
+
+  // ToDo: remove this to a separate Migrations class
+  public function truncate_table(string $table){
+    $this->sql = 'TRUNCATE TABLE ' . $table;
+
+    $this->run();
+
+    return $this->result;
   }
 
 

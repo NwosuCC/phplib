@@ -3,7 +3,7 @@
 namespace Orcses\PhpLib\Incs;
 
 
-interface CustomErrorHandler
+interface HandlesErrors
 {
   /**
    * Registers the callback for custom error handling

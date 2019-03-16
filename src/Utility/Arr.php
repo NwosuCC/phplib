@@ -13,7 +13,7 @@ class Arr
   public static function stripEmpty(array $values){
     return array_filter($values, function ($val){
       if(is_string($val) || is_numeric($val)){ $val = trim($val); }
-      return $val === '';
+      return $val !== '';
     });
   }
 
