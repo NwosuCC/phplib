@@ -3,11 +3,11 @@
 namespace Orcses\PhpLib;
 
 use mysqli as MySQLi;
-use Orcses\PhpLib\Incs\CustomErrorHandler;
 use Orcses\PhpLib\Incs\HandlesError;
+use Orcses\PhpLib\Incs\HandlesErrors;
 
 
-class Queries implements CustomErrorHandler {
+class Queries implements HandlesErrors {
 
   use HandlesError;
 

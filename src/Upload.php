@@ -2,11 +2,11 @@
 
 namespace Orcses\PhpLib;
 
-use Orcses\PhpLib\Incs\CustomErrorHandler;
 use Orcses\PhpLib\Incs\HandlesError;
+use Orcses\PhpLib\Incs\HandlesErrors;
 
 
-class Upload implements CustomErrorHandler {
+class Upload implements HandlesErrors {
 
   use HandlesError;
 
