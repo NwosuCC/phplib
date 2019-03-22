@@ -19,7 +19,7 @@ if (! function_exists('requires')) {
       return !defined($param);
     });
 
-    $error = $missing ? "Undefined Logger parameters: " . implode(', ', $missing) : '';
+    $error = $missing ? "Undefined constants: " . implode(', ', $missing) : '';
 
     if($error && $should_throw){
       throw new Exception($error);
@@ -200,17 +200,7 @@ if (! function_exists('config')) {
    */
   function config($key)
   {
-    switch(true){
-      case defined('CONFIG_DIR') : {
-        $config_dir = constant('CONFIG_DIR'); break;
-      }
-      case defined('APP_DIR') : {
-        $config_dir = constant('APP_DIR') .'/config'; break;
-      }
-      default : { $config_dir = ''; }
-    }
-
-    $config_file = $config_dir . '/app.php';
+    $config_file = full_app_dir() . '/config/app.php';
 
     try {
       $config = require (''.$config_file.'');
@@ -220,6 +210,21 @@ if (! function_exists('config')) {
     catch (Exception $e){}
 
     return null;
+  }
+}
+
+if (! function_exists('full_app_dir')) {
+  /**
+   * Gets the full path to project directory
+   * @return string
+   */
+  function full_app_dir()
+  {
+    $app_dir = str_replace('/', DIRECTORY_SEPARATOR, env('APP_DIR'));
+
+    $doc_root = stristr(__DIR__, $app_dir, true);
+
+    return $doc_root . $app_dir;
   }
 }
 

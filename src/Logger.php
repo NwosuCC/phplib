@@ -7,14 +7,16 @@ use Exception;
 
 class Logger {
   // Specify log directory and file(s) in config.php
-  private static $log_dir;
+  protected static $log_dir;
 
   private static $files = [
     'error' => 'error-log.txt',
   ];
 
   public static function log($type, $details){
-    self::check_parameters();
+    if(!static::$log_dir){
+      static::$log_dir = config('log.dir');
+    }
 
     if(empty(static::$files[$type]) or empty($details)){
       $error_message = empty(static::$files[$type])
@@ -25,7 +27,8 @@ class Logger {
     }
 
     if($report = static::composeReport($type, $details)){
-      $logfile = static::getLogFile($type);
+
+      $logfile = static::getLogFilePath($type);
 
       $fileHandle = fopen($logfile,'a');
 
@@ -36,24 +39,17 @@ class Logger {
     return !empty($report);
   }
 
-  private static function check_parameters() {
-    if(!static::$log_dir){
-      requires([
-        'LOG_DIR'
-      ]);
 
-      static::$log_dir = LOG_DIR;
-    }
-  }
-
-  private static function composeReport($type, $details){
+  protected static function composeReport($type, $details){
     $report = null;
 
     if($type == 'error'){
       list($code, $message) = is_array($details) ? $details : ['--', $details];
+
       $message = trim($message);
 
       $remote_domain = $_SERVER['REMOTE_ADDR'] . ':' . $_SERVER['REMOTE_PORT'];
+
       $request_time = $_SERVER['REQUEST_TIME'];
 
       $request_info = " from {$remote_domain} at " . date('Y-m-d H:i:s', $request_time);
@@ -64,7 +60,8 @@ class Logger {
     return $report;
   }
 
-  private static function getLogFile($type){
+
+  protected static function getLogFilePath($type){
     return static::$log_dir . DIRECTORY_SEPARATOR . static::$files[$type];
   }
 

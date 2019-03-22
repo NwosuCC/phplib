@@ -19,16 +19,26 @@ class Str
 
 
   /**
+   * Checks for a trailing character and returns true if found, false if not found
+   * @param string $value
+   * @param string $char  The character to remove
+   * @return string
+   */
+  public static function hasTrailingChar($value, $char) {
+    $has_char = stripos($value, $char) !== false;
+    $ends_with_char = strlen( stristr($value, $char)) === strlen($char);
+
+    return ($has_char && $ends_with_char);
+  }
+
+  /**
    * Strips trailing character and returns the new value
    * @param string $value
    * @param string $char  The character to remove
    * @return string
    */
   public static function stripTrailingChar($value, $char) {
-    $has_char = stripos($value, $char) !== false;
-    $ends_with_char = strlen( stristr($value, $char)) === strlen($char);
-
-    if($has_char && $ends_with_char){
+    if(static::hasTrailingChar($value, $char)){
       $value = stristr($value, $char, true);
     }
 
@@ -77,19 +87,61 @@ class Str
     return crypt($string, '$2a$09$'.$crypt_BlowFish_salt.'$');
   }
 
+  public static function trimChars(string $value, string $char, int $chunk = 0){
+    // ToDo: include escape characters
 
-  public static function exists_id($table, $column_name, $id, $status = ''){
-    list($column_name, $id) = Queries::escape([$column_name, $id]);
+    $n = $chunk + 1;
 
-    $where = "WHERE $column_name = '$id'";
+    $regex = '/['.$char.']{'.$n.',}/';
 
-    if($status !== ''){
-      $where .= ($status !== '0') ? " AND status = 1" : " AND status BETWEEN 1 AND 2";
-    }
+    $replace = str_repeat($char, $chunk);
 
-    return Queries::select($table, '', $where)->to_array();
+    return preg_replace($regex, $replace, $value);
   }
 
+  public static function trimMultipleChars(string $value, string $char){
+    return static::trimChars($value, $char, 1);
+  }
+
+  public static function trimSpaces(string $value, int $chunk = 0){
+    return static::trimChars($value, ' ', $chunk);
+  }
+
+  public static function trimMultipleSpaces(string $value){
+    return static::trimSpaces($value, 1);
+  }
+
+  public static function snakeCase(string $value){
+    $split = str_split( static::trimMultipleSpaces($value));
+
+    foreach($split as $i => $char){
+      if(strtoupper($char) === $char){
+        $split[ $i ] = ($i > 0 ? '_' : '') . strtolower($char);
+      }
+    }
+
+    return implode('', $split);
+  }
+
+  public static function matchCase(string $case, string $value){
+    $case = trim($case);
+
+    $supported_cases = [
+      'strtoupper', 'strtolower', 'title_case'
+    ];
+
+    $match = false;
+
+    foreach ($supported_cases as $function){
+      if( ! in_array($case, $supported_cases)){
+        continue;
+      }
+
+      $match = call_user_func($function, $value) === call_user_func($case, $value);
+    }
+
+    return $match;
+  }
 
 }
 

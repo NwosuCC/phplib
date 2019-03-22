@@ -112,6 +112,23 @@ class Arr
   }
 
 
+  public static function toDotNotation(array $values){
+    $flat_array = [];
+
+    foreach($values as $key => $value){
+      if(is_array($value)){
+        foreach(static::toDotNotation($value) as $last_key => $last_value){
+          $flat_array[ $key.'.'.$last_key ] = $last_value;
+        }
+      }
+      else {
+        $flat_array[ $key ] = $value;
+      }
+    }
+
+    return $flat_array;
+  }
+
 
 }
 

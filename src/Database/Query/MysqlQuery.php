@@ -3,15 +3,15 @@
 namespace Orcses\PhpLib\Database\Query;
 
 use mysqli as MySQLi;
-use Orcses\PhpLib\Database\Connection\MysqlConnector;
-use Orcses\PhpLib\Database\Schema\Schema;
+use Orcses\PhpLib\Database\Connection\MysqlConnection;
 use Orcses\PhpLib\Incs\HandlesErrors;
 use Orcses\PhpLib\Incs\HandlesError;
+use Orcses\PhpLib\Interfaces\Connectible;
 use Orcses\PhpLib\Utility\Str;
 use Orcses\PhpLib\Utility\Arr;
 
 
-class MysqlQuery implements HandlesErrors {
+class MysqlQuery extends Query implements HandlesErrors {
 
   use HandlesError;
 
@@ -21,26 +21,18 @@ class MysqlQuery implements HandlesErrors {
   /**
    * @var MySQLi instance
    */
-  private $connection;
+  protected $connection;
 
-  private $table, $id_column, $a_i_column;
+  private $table, $a_i_column;
 
   private $caller = '';
 
-  private $sql, $where, $orWhere, $order, $limit, $update_on_insert_fail;
+  private $sql,$tempSql, $where, $orWhere, $order, $limit, $doNotModify;
 
   private $sqlMethod, $multi = [], $isNewQuery = false, $assoc = false;
 
-  public  $result, $rows = [], $count = 0;
+  public  $result, $rows = [], $count = 0, $dry_run = false, $prevSql;
 
-
-  public function __construct(MysqlConnector $connector = null) {
-    if( is_null($connector) ){
-      $connector = new MysqlConnector();
-    }
-
-    $this->connection = $connector->connect();
-  }
 
 
   /**
@@ -48,6 +40,7 @@ class MysqlQuery implements HandlesErrors {
    *@return $this
    */
   protected static function newQuery() {
+    // ToDo: ...
     return new static();
   }
 
@@ -71,47 +64,62 @@ class MysqlQuery implements HandlesErrors {
     return $this->table;
   }
 
-  public function idColumn(string $column = ''){
-    if($column){
-      $this->id_column = $column;
+  private function attempt_A_I_ColumnFromTable(){
+    if($columns = $this->getTableColumns( $this->table() )){
+
+      if($columns = array_filter($columns, function($row){ return $row->Extra === 'auto_increment'; })){
+        return array_shift($columns)->Field;
+      }
     }
 
-    return $this->id_column = $column;
+    return null;
   }
 
-  public function autoIncrementColumn(string $column = ''){
-    if($column){
-      $this->a_i_column = $column;
+  public function autoIncrementColumn(string $a_i_column = ''){
+    if($a_i_column){
+      $this->a_i_column = $this->escape($a_i_column);
+    }
+    else if( ! $this->a_i_column){
+      $this->a_i_column = $this->attempt_A_I_ColumnFromTable();
     }
 
-    return $this->a_i_column = $column;
+    return $this->a_i_column;
+  }
+
+  // Can use Str::clean
+  public static function sanitize(string $value){
+    return stripslashes( htmlspecialchars( trim($value)));
   }
 
   /**
    * Prepares the query for execution. Escapes single- and double-quotes
-   * @param array $values The values to escape
+   * @param array|string $values The values to escape
    * @return array
    */
-  public function escape(array $values){
+  public function escape($values){
+    if( ! $is_array = is_array($values)){
+      $values = [$values];
+    }
+
     $escaped_values = [];
 
-    foreach($values as $key => $value){
-      if(is_array($value)){
-        $escaped_values[ $key ] = $this->escape($value);
+    foreach($values as $key => $raw_value){
+      if(is_array($raw_value)){
+        $value = $this->escape($raw_value);
       }
       else{
-        $value = stripslashes( htmlspecialchars( trim($value)));
+        $value = static::sanitize($raw_value);
 
         // Escape if NOT marked as Raw MySQL Query using '|q'
         if(stripos($value, '|q') === false){
           $value = static::newQuery()->connection->real_escape_string($value);
         }
-
-        $escaped_values[$key] = $value;
       }
+
+      $escaped_values[ $key ] = $value;
     }
 
-    return $escaped_values;
+    return $is_array ? $escaped_values : $escaped_values[0];
   }
 
 
@@ -137,7 +145,7 @@ class MysqlQuery implements HandlesErrors {
     return Arr::pad($aliases, 2, '');
   }
 
-  private static function isRawData(string $type, string$value){
+  private static function isRawData(string $type, string $value){
     $types = ['c', 'q', 'v', 'b'];
 
     if(!in_array($type, $types)){
@@ -146,12 +154,7 @@ class MysqlQuery implements HandlesErrors {
 
     $marker = "|$type";
 
-    $value = trim($value);
-
-    $has_marker = stripos($value, $marker) !== false;
-    $ends_with_marker = strlen( stristr($value, $marker)) === 2;
-
-    return $has_marker && $ends_with_marker;
+    return Str::hasTrailingChar($value, $marker);
   }
 
   private static function isTableColumn($value){
@@ -251,7 +254,6 @@ class MysqlQuery implements HandlesErrors {
         $column = $table . "{$column_quote}". $column ."{$column_quote}";
       }
 
-
       if($alias){
         $alias_quote = $quotes['column'];
 
@@ -264,7 +266,8 @@ class MysqlQuery implements HandlesErrors {
       $column_types[ $index ] = $column_type;
     }
 
-    return $is_array ? [$columns, $column_types] : [ $columns[0], $column_types[0] ];
+//    return $is_array ? [$columns, $column_types] : [ $columns[0], $column_types[0] ];
+    return $is_array ? $columns : $columns[0];
   }
 
   /**
@@ -327,48 +330,96 @@ class MysqlQuery implements HandlesErrors {
 
   /**
    * Creates a relatively unique string (non-numeric) id
+   * @param string $id_column   The name of the id_string column
+   * @param int $chunk          How many IDs to generate and return. Max is 100
    * @param int $length         The length of the hashed string id
-   * @param array $table_column An array containing the table and id column e.g ['users', 'user_id']
-   * @return string
+   * @return array
    */
-  public function uniqueStringId(int $length = 9, array $table_column = []){
-    $string = rand(1,9) * time();
+  public function uniqueStringId($id_column, $chunk = 1, int $length = 16){
+    $chunk = min($chunk,100);
+
+    $string = rand(1,9) * rand(1,9) * time();
 
     $id_group[] = $unique_id = Str::hash($string, $length);
 
-    if($table_column){
-      list($table, $column) = $this->only($table_column, ['table', 'column']);
+    // Twice the number of required IDs to cover for any existing ones
+    $iterations = $chunk * 2;
 
-      for($n = 1; $n < 15; $n++){
-        $id_group[] = Str::hash($string, $length, $n);
-      }
-
-      $where = [
-        $column => ['IN', $id_group]
-      ];
-
-      if($existing_rows = static::select($table, $column, $where)->all()){
-        $existing_rows_id = array_column($existing_rows, $column);
-        $id_group = Arr::pickExcept( array_flip($existing_rows_id), array_flip($id_group) );
-      }
-
-      $unique_id = $id_group ? $id_group[0] : null;
+    for($n = 1; $n < $iterations; $n++){
+      $id_group[] = Str::hash($string, $length, $n);
     }
 
-    return $unique_id;
+    $this->where([
+      $id_column => ['IN', $id_group]
+    ]);
+
+    if($existing_rows = $this->select([$id_column])->asArray()->all()){
+
+      $existing_rows_id = array_column($existing_rows, $id_column);
+
+      $id_group = Arr::pickExcept( array_flip($existing_rows_id), array_flip($id_group) );
+    }
+
+    return $id_group ? array_slice($id_group, 0, $chunk) : null;
   }
 
 
   /**
-   * Holds the name of a specific method that calls another more generic one
+   * Resets and returns the name of a specific method that calls another more generic one
    */
   private function caller() {
     $caller = $this->caller;
+
     return ($this->caller = '') ?: $caller;
   }
 
   /**
-   * Returns whether or not to fetch results as array. Default is false
+   * Resets and returns the stored 'OR' where clause
+   */
+  private function getOrWhere(){
+    $orWhere = $this->orWhere;
+
+    return ($this->orWhere = '') ?: $orWhere;
+  }
+
+  /**
+   * Resets and returns the stored where clause including the 'OR' where clause
+   */
+  private function getWhere(){
+    $where = $this->where;
+
+    return ($this->where = '') ?: $where .' '. $this->getOrWhere();
+  }
+
+  /**
+   * Resets and returns the stored order-by clause
+   */
+  private function getOrder(){
+    $order = $this->order;
+
+    return ($this->order = '') ?: $order;
+  }
+
+  /**
+   * Resets and returns the stored limit clause
+   */
+  private function getLimit(){
+    $limit = $this->limit;
+
+    return ($this->limit = '') ?: $limit;
+  }
+
+  /**
+   * Resets and returns whether or not to apply previously specified constraints. Default is false
+   */
+  private function doNotModify() {
+    $doNotModify = $this->doNotModify;
+
+    return ($this->doNotModify = false) ?: $doNotModify;
+  }
+
+  /**
+   * Resets and returns whether or not to fetch results as array. Default is false
    */
   private function assoc() {
     $assoc = $this->assoc;
@@ -377,69 +428,56 @@ class MysqlQuery implements HandlesErrors {
   }
 
   /**
-   * Returns the stored main query clause
+   * Resets and returns any stored intermittent sql.
+   * E.g see insertOrUpdate()
    */
-  public function getSql(){
-//    $sql = $this->sql;
-//    return ($this->sql = '') ?: $sql;
-    return $this->sql;
+  private function getTempSql(){
+    $tempSql = $this->tempSql;
+
+    return ($this->tempSql = '') ?: $tempSql;
   }
 
   /**
-   * Returns the stored 'OR' where clause
+   * Resets and returns the stored main query only
    */
-  public function getOrWhere(){
-    $orWhere = $this->orWhere;
-    return ($this->orWhere = '') ?: $orWhere;
+  private function getSql(){
+    $sql = $this->sql;
+
+    return ($this->sql = '') ?: $sql;
   }
 
   /**
-   * Returns the stored where clause including the 'OR' where clause
-   */
-  public function getWhere(){
-    $where = $this->where;
-
-    return ($this->where = '') ?: $where .' '. $this->getOrWhere();
-  }
-
-  /**
-   * Returns the stored order clause
-   */
-  public function getOrder(){
-    $order = $this->order;
-
-    return ($this->order = '') ?: $order;
-  }
-
-  /**
-   * Returns the stored where clause
-   */
-  public function getLimit(){
-    $limit = $this->limit;
-
-    return ($this->limit = '') ?: $limit;
-  }
-
-  /**
-   * Returns the stored query including the where clause
+   * Returns the non-executed stored query including the where clause
    */
   public function queryString() {
-    return $this->getSql();
+    if($sql = $this->getSql() .' '. $this->getTempSql()){
+      $this->prevSql = $sql;
+    }
+
+    return $sql;
+  }
+
+  /**
+   * Returns the last executed sql
+   */
+  public function prevSql(){
+    return $this->prevSql;
   }
 
   /**
    * Returns the MySQL method to call in the next execution. One of ['query', 'multi_query']
    */
-  public function sqlMethod() {
+  private function sqlMethod() {
     $sqlMethod = $this->sqlMethod;
 
     return ($this->sqlMethod = '') ?: $sqlMethod;
   }
 
+
   /**
    * Begin a database transaction
    */
-  public function start_txn() {
+  public function startTransaction() {
     $this->sql = "START TRANSACTION";
 
     $this->run();
@@ -447,22 +485,45 @@ class MysqlQuery implements HandlesErrors {
 
   /**
    * End a database transaction
-   * @param bool $ok If true, commits the transaction, else, rolls back
+   * If $this->commit() resolves to true, it commits the transaction, else, rolls back
    */
-  public function end_txn($ok) {
-    $this->sql = ($ok === true) ? "COMMIT" : "ROLLBACK";
+  public function endTransaction() {
+    $this->sql = $this->commit() ? "COMMIT" : "ROLLBACK";
 
     $this->run();
 
     $this->connection->close();
   }
 
+  private function commit(){
+    $dry_run = $this->dry_run;
+
+    return ($this->dry_run = false) ?: ! $dry_run;
+  }
+
+  public function dryRun(){
+    $this->dry_run = true;
+
+    return $this;
+  }
+
+  public function asTransaction($callable){
+    $this->startTransaction();
+
+    $result = call_user_func($callable, ...func_get_args());
+
+    $this->endTransaction();
+
+    return $result;
+  }
+
+
   /**
    * Executes the stored query. Single query by default except another is explicitly set vie sqlMethod()
    * @return $this
    */
   private function run(){
-    if( !$method = $this->sqlMethod()){
+    if( ! $method = $this->sqlMethod()){
       $method = 'query';
       $this->multi = [];
     }
@@ -503,6 +564,8 @@ class MysqlQuery implements HandlesErrors {
       // =============================================================================
       // Single Query Result
       // --------------------------------------------------------------------------
+      $result_set = [];
+
       if ( !empty($this->result->num_rows)){
         while($row = call_user_func([$this->result, $function])){
           $result_set[] = $row;
@@ -627,13 +690,22 @@ class MysqlQuery implements HandlesErrors {
       }
     }
 
-//    $valid = !( !$values_count or (!$query && empty($valid_keys) && empty($valid_items_count)) );
     $valid = !( (!$query && empty($valid_keys) && empty($valid_items_count)) );
 
     return $valid ? [$values, $query] : null;
   }
 
 
+  /**
+   * @param array $values
+   * @param string $query
+   *
+   * Arguments examples:
+   * EITHER i.)  (array $values e.g [$name, $email], string $query e.g "name = ?1 OR email = ?2")
+   * OR     ii.) (array $values e.g ["query" => "name = ?1 OR email = ?2", "values" => [$name, $email]])';
+   *
+   * @return string
+   */
   private function setQueryValues(array $values, string $query = ''){
     $valid_args = $this->validateQueryValues($values, $query);
 
@@ -655,8 +727,6 @@ class MysqlQuery implements HandlesErrors {
       }
 
       static::throwError($error);
-
-      return [];
     }
 
 
@@ -668,7 +738,7 @@ class MysqlQuery implements HandlesErrors {
       $is_query = ($pos_query !== false and $pos_value === $pos_query);
 
       if( ! $is_query ){
-        list($var) = $this->add_quotes_Values( $this->escape([$var]) );
+        $var = $this->add_quotes_Values( $this->escape($var) );
       }
 
       $pattern = "/\?[q]?{$number}([^0-9]|$)/";
@@ -688,13 +758,22 @@ class MysqlQuery implements HandlesErrors {
   }
 
 
+  /**
+   * @param array $values
+   * @param string $query  See setQueryValues() for how param $query may be empty
+   * @return string
+   */
   public function rawQuery(array $values, string $query = ''){
     $this->caller = $this->caller() ?: 'rawQuery';
 
     return $this->setQueryValues($values, $query);
   }
 
-
+  /**
+   * @param array $values
+   * @param string $query  See setQueryValues() for how param $query may be empty
+   * @return $this
+   */
   public function whereRaw(array $values, string $query = ''){
     $this->caller = $this->caller() ?: 'whereRaw';
 
@@ -785,8 +864,7 @@ class MysqlQuery implements HandlesErrors {
 
       $column_is_blank = static::isBlank($column);
 
-      list($column) = $this->add_quotes_Columns($column);
-
+      $column = $this->add_quotes_Columns($column);
 
       if(!$join or $column_is_blank){
         $column = $operator = '';
@@ -842,27 +920,6 @@ class MysqlQuery implements HandlesErrors {
   }
 
 
-  /**
-   * Returns all rows with only the specified columns
-   * @param array $rows           The array of rows as from a database fetch
-   * @param array|string $columns The columns to pick. All other columns are dropped
-   * @return array
-   */
-  public function only($rows, $columns){
-    return Arr::each($rows, [Arr::class, 'pickOnly'], (array) $columns);
-  }
-
-  /**
-   * Returns all rows with only the specified columns
-   * @param array $rows
-   * @param array|string $columns The columns to pick. All other columns are dropped
-   * @return array
-   */
-  public function except(array $rows, $columns){
-    return Arr::each($rows, [Arr::class, 'pickExcept'], (array) $columns);
-  }
-
-
   public function asArray() {
     $this->assoc = true;
 
@@ -886,16 +943,6 @@ class MysqlQuery implements HandlesErrors {
     return $this->multi ? count($this->all()) : $this->result->num_rows;
   }
 
-  public function id(string $id_column = '') {
-    $row = $this->first();
-
-    $valid_column = $row && (!empty($row['id']) || !empty($row[ $id_column ]));
-
-    $id = $valid_column ? ($row['id'] ?? $row[ $id_column ]) : null;
-
-    return $id ? ['id' => $id] : null;
-  }
-
   public function first(){
     return ($rows = $this->all()) ? reset($rows) : null;
   }
@@ -905,72 +952,60 @@ class MysqlQuery implements HandlesErrors {
   }
 
 
-  public function lastModifiedId($table, array $columns = [], string $id_column = ''){
-    $id_column = $this->add_quotes_Columns( $id_column ?: $this->idColumn() );
+  public function lastInsertId(array $columns = []){
+    if($a_i_column = $this->autoIncrementColumn()){
 
-    $this->where = ["{$id_column} = LAST_INSERT_ID()"];
+      $this->where([
+        "$a_i_column" => 'LAST_INSERT_ID()|q'
+      ]);
 
-    return $this->select($table, $columns)->last();
-  }
-
-
-  public function lastWrittenRow($table, $columns, $a_i_column = ''){
-    $a_i_column = $this->add_quotes_Columns( $a_i_column ?: $this->autoIncrementColumn() );
-
-    $columns[] = $a_i_column;
-
-    $this->orderBy($a_i_column, 'desc');
-
-    $this->limit(1);
-
-    return $this->select($table, $columns)->first();
-  }
-
-
-  public function getLastParams($table, array $columns, string $a_i_column){
-    $lastInsertID = $lastRow = null;
-
-    if($rows = $this->count()){
-      $lastInsertID = $this->lastModifiedId($table, $columns, $a_i_column);
+      return $this->select($columns)->last();
     }
 
-    if($a_i_column){
-      $lastRow = static::lastWrittenRow($table, $columns, $a_i_column);
+    return null;
+  }
+
+
+  public function lastModifiedRow(array $columns){
+    if($a_i_column = $this->autoIncrementColumn()){
+      $columns[] = $a_i_column;
+
+      $this->orderBy($a_i_column, 'desc');
+
+      $this->limit(1);
+
+      return $this->select($columns)->first();
+    }
+
+    return null;
+  }
+
+
+  public function getLastParams(array $columns){
+    $lastInsertId = $lastRow = null;
+
+    if($rows = $this->count()){
+      $lastInsertId = $this->lastInsertId($columns);
+
+      $lastRow = static::lastModifiedRow($columns);
     }
 
     return [
-      'rows' => $rows, 'lastInsertID' => $lastInsertID, 'lastRow' => $lastRow
+      'rows' => $rows, 'lastInsertId' => $lastInsertId, 'lastRow' => $lastRow
     ];
   }
 
 
-  public function addIdColumn(array $columns){
-    $id = $this->idColumn();
-
-    if($id && ! array_search($id, $columns)){
-      $columns[] = $id;
-    }
-
-    return $columns;
-  }
-
-
-  public function select($table, Array $columns, Array $where = []){
+  public function select(array $columns = []){
     $columns = empty($columns) ? ['*'] : $columns;
 
-    $columns = $this->escape($columns);
+    $columns = $this->add_quotes_Columns( $this->escape($columns), true);
 
-    list($columns) = $this->add_quotes_Columns($columns, true);
-
-    $columns = implode(',', $this->addIdColumn($columns));
-
-    if($where){
-      $this->caller = 'select';
-      $this->whereRaw( $where );
-    }
+    $columns = implode(',', $columns);
 
     $composition = [
-      'SELECT', $columns, 'FROM', $table, $this->getWhere(), $this->getOrder(), $this->getLimit()
+      'SELECT', $columns, 'FROM', $this->table(),
+      $this->getWhere(), $this->getOrder(), $this->getLimit()
     ];
 
     $this->sql = implode(' ', $composition);
@@ -979,17 +1014,17 @@ class MysqlQuery implements HandlesErrors {
   }
 
 
-  public function insertUnique($table, Array $columns, Array $values, Array $where = []){
-    $select_columns = $this->addIdColumn($columns);
+  public function ifNotExists(array $where_values){
+    $this->where($where_values);
 
-    $record = $this->select($table, $select_columns, $where)->first();
+    $this->doNotModify = $this->select()->count() > 0;
 
-    return $record ? false : $this->insert($table, $columns, $values);
+    return $this;
   }
 
 
-  public function insertElseUpdate($table, Array $columns, Array $values, Array $update_values){
-    if( !$update_values) {
+  public function insertElseUpdate(array $columns, array $values, array $update_values){
+    if( ! $update_values) {
       static::throwError('insertOrUpdate() requires parameter [Array $update_values]');
     }
 
@@ -1002,17 +1037,35 @@ class MysqlQuery implements HandlesErrors {
 
     $all_update_values = implode(',', $all_update_values);
 
-    $this->update_on_insert_fail = " ON DUPLICATE KEY UPDATE {$all_update_values}";
+    $this->tempSql = " ON DUPLICATE KEY UPDATE {$all_update_values}";
 
-    return $this->insert($table, $columns, $values);
+    return $this->insert($columns, $values);
   }
 
 
-  public function insert($table, array $columns, array $values){
+  public function insert(array $columns, array $values = []){
+    // If a previous constraint prevents this operation, abort. E.g, see insertUnique()
+    if($this->doNotModify()){
+      return false;
+    }
+
+    if(func_num_args() === 1){
+      list($columns, $values) = [array_keys($columns), array_values($columns)];
+
+      /*$columns_values = $columns;
+
+      $columns = sort( array_keys($columns_values));
+
+      ksort($columns_values);
+
+      $values = array_values($columns_values);*/
+
+      $values = [$values];
+    }
+
     $columns = $this->add_quotes_Columns( $this->escape($columns) );
 
-    $insert_columns = implode(',', $columns);
-
+    $insert_columns = '(' . implode(',', $columns) . ')';
 
     $values = $this->escape($values);
 
@@ -1027,34 +1080,38 @@ class MysqlQuery implements HandlesErrors {
     $rows = implode(',', $insert_values);
 
     $composition = [
-      'INSERT INTO', $table, $insert_columns, 'VALUES', $rows
+      'INSERT INTO', $this->table(), $insert_columns, 'VALUES', $rows
     ];
 
     $this->sql = implode(' ', $composition);
 
-    if($this->update_on_insert_fail){
-      $this->sql .= $this->update_on_insert_fail;
+    if($this->run()->result){
+      $result = $this->lastInsertId();
     }
 
-    $this->run();
-
-    return $this->result ? $this->lastModifiedId($table, $columns)->first() : false;
+    return ($this->result && !empty($result)) ? $result : $this->connection->affected_rows;
   }
 
 
   public function update(array $updates) {
+    if($this->doNotModify()){
+      return false;
+    }
+
     $columns_values = [];
 
     foreach ($updates as $column => $value){
-      list($column) = $this->add_quotes_Columns( $this->escape([$column]) );
+      $column = $this->add_quotes_Columns( $this->escape($column) );
 
       list($value) = $this->add_quotes_Values( $this->escape([$value]) );
 
       $columns_values[] = "$column = $value";
     }
 
+    $a_i_column = $this->add_quotes_Columns( $this->autoIncrementColumn() );
+
     // To track and return the last updated row
-    $columns_values[] = "`last_insert_id` = LAST_INSERT_ID( last_insert_id )";
+    $columns_values[] = "$a_i_column = LAST_INSERT_ID($a_i_column)";
 
     $columns_values = implode(',', $columns_values);
 
@@ -1068,17 +1125,19 @@ class MysqlQuery implements HandlesErrors {
 
     $this->sql = implode(' ', $composition);
 
-    $this->run();
-
-    if($result = $this->connection->affected_rows) {
-      return $this->lastModifiedId($table, [], 'last_insert_id')->first();
+    if($this->run()->result){
+      $result = $this->lastInsertId();
     }
 
-    return 0;
+    return ($this->result && !empty($result)) ? $result : $this->connection->affected_rows;
   }
 
 
   public function delete() {
+    if($this->doNotModify()){
+      return false;
+    }
+
     if( ! $where = $this->getWhere()){
       static::throwError("Please, define a 'WHERE...' clause for this operation.");
     }
@@ -1098,7 +1157,7 @@ class MysqlQuery implements HandlesErrors {
   // ToDo: Use array $options to collect user-specified arguments
   public function load_data_file(
     $file_path, $fields_term = '', $fields_enclosed = '',
-    $lines_term = '', $ignore_lines = '', $columns = '', $set_columns = '', $a_i_column = ''
+    $lines_term = '', $ignore_lines = '', $columns = '', $set_columns = ''
   )
   {
     if($fields_term !== '' || $fields_enclosed !== ''){
@@ -1147,28 +1206,25 @@ class MysqlQuery implements HandlesErrors {
     if ($this->result){
       $columns = str_replace('@', '', $columns);
 
-      return $this->getLastParams($table, $columns, $a_i_column);
+//      return $this->getLastParams($columns, $a_i_column);
+      return $this->getLastParams($columns);
     }
 
     return false;
   }
 
 
-  // ToDo: remove this to a separate Migrations class
-  public function create_database(string $name){
-    $name = $this->add_quotes_Columns( $name );
+  public function createDatabase(string $name){
+    $name = $this->add_quotes_Columns($name);
 
     $this->sql = 'CREATE DATABASE ' . $name;
 
-    $this->run();
-
-    return $this->result;
+    return $this->run()->result;
   }
 
 
-  // ToDo: remove this to a separate Migrations class
-  public function create_table(string $name, array $column_definitions){
-    $name = $this->add_quotes_Columns( $name );
+  public function createTable(string $name, array $column_definitions){
+    $name = $this->add_quotes_Columns($name);
 
     // ToDo: can this be escaped without errors ??
     $column_definitions = $this->escape($column_definitions);
@@ -1179,19 +1235,36 @@ class MysqlQuery implements HandlesErrors {
 
     $this->sql = implode(' ', $composition);
 
-    $this->run();
-
-    return $this->result;
+    return $this->run()->result;
   }
 
 
-  // ToDo: remove this to a separate Migrations class
+  public function tableExists(string $table, string $database = ''){
+    list($table, $database) = $this->escape([$table, $database]);
+
+    $this->sql = $database
+      ? "SHOW TABLES FROM `$database` WHERE `Tables_in_$database` LIKE '$table';"
+      : "SHOW TABLES LIKE '$table';";
+
+    return $this->run()->count();
+  }
+
+
+  public function getTableColumns(string $table){
+    $table = $this->add_quotes_Columns($table);
+
+    $this->sql = 'DESCRIBE ' . $table;
+
+    return $this->all();
+  }
+
+
   public function truncate_table(string $table){
+    $table = $this->add_quotes_Columns($table);
+
     $this->sql = 'TRUNCATE TABLE ' . $table;
 
-    $this->run();
-
-    return $this->result;
+    return $this->run()->result;
   }
 
 

@@ -17,13 +17,13 @@ class Validation implements HandlesErrors {
 
   // [Function name, [Argument variables names]]
   private static $aliases = [
-    'anu' => ['alphanumeric'],
+    'alphanumeric' => ['alphanumeric'],
     'ans' => ['alphanumeric_space'],
     'anc' => ['alphanumeric_chars'],
     'adr' => ['address'],
     'xtr' => ['extraFields'],
-    'eml' => ['email'],
-    'pwd' => ['password', ['no_validate']],
+    'email' => ['email'],
+    'password' => ['password'],
     'chk' => ['checkbox', ['required', 'defaultValue']],
     'txt' => ['text'],
     'url' => ['url'],
@@ -38,7 +38,7 @@ class Validation implements HandlesErrors {
   ];
 
   private static $check = [
-    'r' => ['required', '{var} is required'],
+    'required' => ['required', '{var} is required'],
   ];
 
 
@@ -119,7 +119,7 @@ class Validation implements HandlesErrors {
 
     if($omittedFields = array_diff(array_keys($allFields), $checked_fields)){
       foreach ($omittedFields as $field){
-        $report = static::$check['r'][1];
+        $report = static::$check['required'][1];
         $report = str_replace('{var}', $allFields[$field][1], $report);
         $errors[] = ['field' => $field, 'text' => $report];
       }
@@ -388,20 +388,30 @@ class Validation implements HandlesErrors {
     return ($valid) ? [true,$value] : [null,$errorMsg];
   }
 
-  public static function password($password, $arguments = []){
+  public static function password($password, array $arguments = []){
     /*  Do NOT validate if supplied Password is for login
      *  If the 'no_validate' check is not used, then validation (e.g Min 8 chars) will
      *  apply for login too, which is not ideal!
      */
-    list($validation_type) = $arguments;
-    if($validation_type === 0){ return [true, $password]; }
+    $validation_type = null;
+    if($arguments){
+      list($validation_type) = $arguments;
+    }
+
+    if($validation_type === 0){
+      return [true, $password];
+    }
 
     $cfPassword = $errorMsg = '';
-    if(is_array($password)){ list($password,$cfPassword) = $password; }
+
+    if(is_array($password)){
+      list($password, $cfPassword) = $password;
+    }
 
     $has_at_least_one_letter = (preg_match('/[A-z]/',$password));
     $has_at_least_one_number = (preg_match('/[0-9]/',$password));
     $has_compulsory_chars = ($has_at_least_one_letter and $has_at_least_one_number);
+
     if((strlen($password) < 8) or !$has_compulsory_chars){
       $errorMsg .= '{var} requires Minimum eight(8) characters with at least one alphabet and one digit.';
     }
