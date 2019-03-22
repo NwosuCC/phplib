@@ -3,8 +3,8 @@
 namespace Orcses\PhpLib;
 
 use mysqli as MySQLi;
-use Orcses\PhpLib\Incs\HandlesError;
 use Orcses\PhpLib\Incs\HandlesErrors;
+use Orcses\PhpLib\Incs\HandlesError;
 
 
 class Queries implements HandlesErrors {
@@ -16,12 +16,12 @@ class Queries implements HandlesErrors {
   public static $result, $rows = [];
 
 
-  // See CustomErrorHandler::setErrorHandler() for more info
+  // See HandlesErrors::setErrorHandler() for more info
   public static function setErrorHandler(array $callback = []) {
     static::$error_handler = $callback;
   }
 
-  // See CustomErrorHandler::getErrorHandler() for more info
+  // See HandlesErrors::getErrorHandler() for more info
   public static function getErrorHandler() {
     return static::$error_handler;
   }

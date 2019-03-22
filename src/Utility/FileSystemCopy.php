@@ -6,7 +6,7 @@ namespace Orcses\PhpLib\Utility;
 class FileSystemCopy
 {
   /**
-   * @author      Aidan Lister <aidan@php.net>
+   * @author      Aidan Lister <aidan@php.app>
    * @version     1.0.1
    * @link        http://aidanlister.com/2004/04/recursively-copying-directories-in-php
    * @param       string   $source        Source path

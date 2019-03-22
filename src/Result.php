@@ -3,23 +3,32 @@
 namespace Orcses\PhpLib;
 
 
-Abstract class Result {
-  private static $result, $info;
-
+class Result
+{
   private static $reports;
 
-  public static function prepareAndSend($data) {
-    static::prepare($data);
+  private $result, $info;
 
-    static::dispatch();
+  private $http_status_code, $response;
+
+
+  public function __construct(array $result = [], array $info = []){
+    $this->result = $result;
+
+    $this->info = $info;
   }
 
 
-  public static function sendPrepared(array $result, array $info) {
-    self::$result = $result;
-    self::$info = $info;
+  public function prepareAndSend($data) {
+    return $this->prepare($data)->composeResponse();
+  }
 
-    static::dispatch();
+
+  public function sendPrepared(array $result, array $info) {
+    $this->result = $result;
+    $this->info = $info;
+
+    return $this->composeResponse();
   }
 
 
@@ -28,33 +37,34 @@ Abstract class Result {
     static::$reports = $_REPORTS;
     $notice = [];
 
-    if(!is_array($result) or count($result) < 2){
+    if( ! is_array($result) or count($result) < 2){
       return null;
     }
 
-    if(!isset($result[2])){ $result[2] = []; }
-
+    if( ! isset($result[2])){
+      $result[2] = [];
+    }
 
     list($function, $error_number, $info) = $result;
 
-    if(is_array($error_number)){
+    if(is_array($error_number) and count($error_number) === 2){
       list($error_number, $replaces) = $error_number;
     }
 
     if(strlen($error_number) > 1){
       $indices = str_split($error_number);
+
       list($error_number, $message_index) = array_splice($indices, 0, 2);
-//            array_splice($indices, 0, 2);
     }
 
-    if(!$error_number){
+    if( ! $error_number){
       $result = static::$reports[$function]['success'];
 
       if(!empty($message_index)){
         $result[1] = $result[1][$message_index];
       }
 
-      if(empty($result[2])){ // Http Success Code
+      if(empty($result[2])){ // Default Http Success Code
         $result[2] = 200;
       }
     }
@@ -82,43 +92,55 @@ Abstract class Result {
         $result[1] = str_replace('{'.$find.'}', $replace, $result[1]);
       }
     }
+    
     if(!empty($notice)){
       $result[1] = [$result[1], $notice];
     }
 
-    // self::$result : [$internal_code, $message, $http_status_code]
-    self::$result = $result;
-    self::$info = $info;
-
-    return [self::$result, self::$info];
+    return new static($result, $info);
   }
 
 
-  protected static function dispatch(bool $send = true){
-    list($code, $message, $http_status_code) = static::$result;
+  public function getData(){
+    return [$this->result, $this->info];
+  }
 
-    $response = [
-      'status' => static::status($code),
-      'code' => $code,
-      'message' => $message,
-      'info' => static::$info,
-    ];
 
-    if($send){
-      Response::send($http_status_code, $response);
+  public function getResponseData(){
+    if($this->result && ! $this->response){
+      $this->composeResponse();
     }
 
-    return [$http_status_code, $response];
+    return [$this->http_status_code, $this->response];
   }
 
 
-  protected static function status($code){
-    return (static::successful($code)) ? 'Success' : 'Error';
+  public function composeResponse(){
+    if( ! $this->result){
+      // throw Exception No result
+      return null;
+    }
+
+    list($code, $message, $this->http_status_code) = $this->result;
+
+    $this->response = [
+      'status' => $this->status(),
+      'code' => $code,
+      'message' => $message,
+      'info' => $this->info,
+    ];
+
+    return $this;
   }
 
 
-  public static function successful($result){
-    $code = (is_array($result)) ? $result[0] : $result;
+  protected function status(){
+    return $this->isSuccessful() ? 'Success' : 'Error';
+  }
+
+
+  protected function isSuccessful(){
+    $code = $this->result[0];
 
     $success_codes = ['0', '00', '000'];
 

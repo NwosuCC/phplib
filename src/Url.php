@@ -5,14 +5,14 @@ namespace Orcses\PhpLib;
 
 class Url {
   private static $common_TLDs = [
-    'com', 'org', 'net', 'co', 'biz', 'io'
+    'com', 'org', 'app', 'co', 'biz', 'io'
   ];
 
   private static function getRegexpPattern(){
     // Complete URL Regexp Pattern:
     $regexp  = "((https?|ftp)://)?"; // SCHEME: 1-2
     $regexp .= "(([a-z0-9+!*(),;?&=_$.-]+)(:([a-z0-9+!*(),;?&=_$.-]+))?@)?"; // User and Pass: 3-6
-    $regexp .= "((([a-z0-9-]*\.)*(((com|org|net|co|biz)\.)?[a-z]{2,4})|localhost)"; // Host:
+    $regexp .= "((([a-z0-9-]*\.)*(((com|org|app|co|biz)\.)?[a-z]{2,4})|localhost)"; // Host:
     $regexp .= "|"; // OR
     $regexp .= "[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3})"; // IP:
     $regexp .= "(:([0-9]{2,5}))?"; // Port

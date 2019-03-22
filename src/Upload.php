@@ -2,8 +2,8 @@
 
 namespace Orcses\PhpLib;
 
-use Orcses\PhpLib\Incs\HandlesError;
 use Orcses\PhpLib\Incs\HandlesErrors;
+use Orcses\PhpLib\Incs\HandlesError;
 
 
 class Upload implements HandlesErrors {
@@ -20,12 +20,12 @@ class Upload implements HandlesErrors {
   private static $file, $return_temp_file, $result, $more;
 
 
-  // See CustomErrorHandler::setErrorHandler() for more info
+  // See HandlesErrors::setErrorHandler() for more info
   public static function setErrorHandler(array $callback = []) {
     static::$error_handler = $callback;
   }
 
-  // See CustomErrorHandler::getErrorHandler() for more info
+  // See HandlesErrors::getErrorHandler() for more info
   public static function getErrorHandler() {
     return static::$error_handler;
   }

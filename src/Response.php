@@ -7,24 +7,63 @@ class Response
 {
   private static $CORS_allowed_Urls = '';
 
+  private $http_status_code, $http_status_message, $body;
+
+
+  public function __construct(int $http_code, array $data = []) {
+
+    $this->setHttpCode($http_code)->setBody($data);
+
+  }
+
 
   public static function set_CORS_allowed_Urls(array $allowed_Urls) {
-    $allowed_Urls = array_map(function ($url){ return trim($url); }, $allowed_Urls);
+    $allowed_Urls = array_map('trim', $allowed_Urls);
 
     static::$CORS_allowed_Urls = implode(',', $allowed_Urls);
   }
 
 
-  public static function send($http_code, $data) {
-    static::sendHeaders($http_code);
+  public static function dispatch(Result $result){
+    [$http_code, $data] = $result->getResponseData();
 
-    die(json_encode($data));
+    return new static($http_code, $data);
   }
 
 
-  private static function sendHeaders(int $code, string $message = '') {
-    $http_status_code = $code ?: 200;
-    $http_status_message = $message ?: '';
+  public function setHttpCode($http_status_code){
+    $http_status_message = '';
+
+    if(is_array($http_status_code)){
+      [$http_status_code, $http_status_message] = $http_status_code;
+    }
+
+    $this->http_status_code = $http_status_code;
+
+    $this->http_status_message = $http_status_message;
+
+    return $this;
+  }
+
+
+  public function setBody(array $data){
+    $this->body = $data;
+
+    return $this;
+  }
+
+
+  public function send() {
+    $this->sendHeaders();
+
+    die(json_encode($this->body));
+  }
+
+
+  private function sendHeaders() {
+    $http_status_code = $this->http_status_code ?: 200;
+
+    $http_status_message = $this->http_status_message ?: '';
 
     $php_SApi_name = substr(php_sapi_name(), 0, 3);
 
@@ -37,7 +76,9 @@ class Response
     }
 
     header('Access-Control-Allow-Headers: Content-Type');
+
     header('Content-Type: application/json', true);
+
     header($protocol .' '. $http_status_code .' '. $http_status_message);
   }
 

@@ -6,7 +6,7 @@ use Orcses\PhpLib\Incs\HandlesError;
 use Orcses\PhpLib\Incs\HandlesErrors;
 
 
-class Validation implements HandlesErrors {
+class Validation_old implements HandlesErrors {
 
   use HandlesError;
 
@@ -23,7 +23,8 @@ class Validation implements HandlesErrors {
     'adr' => ['address'],
     'xtr' => ['extraFields'],
     'email' => ['email'],
-    'password' => ['password'],
+    'password' => ['password', ['no_validate']],
+    'confirmed' => ['password'],
     'chk' => ['checkbox', ['required', 'defaultValue']],
     'txt' => ['text'],
     'url' => ['url'],
