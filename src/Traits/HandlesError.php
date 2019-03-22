@@ -1,6 +1,6 @@
 <?php
 
-namespace Orcses\PhpLib\Incs;
+namespace Orcses\PhpLib\Traits;
 
 use Exception;
 

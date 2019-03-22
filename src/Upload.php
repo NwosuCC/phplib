@@ -2,8 +2,8 @@
 
 namespace Orcses\PhpLib;
 
-use Orcses\PhpLib\Incs\HandlesErrors;
-use Orcses\PhpLib\Incs\HandlesError;
+use Orcses\PhpLib\Interfaces\HandlesErrors;
+use Orcses\PhpLib\Traits\HandlesError;
 
 
 class Upload implements HandlesErrors {

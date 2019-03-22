@@ -1,6 +1,6 @@
 <?php
 
-namespace Orcses\PhpLib\Incs;
+namespace Orcses\PhpLib\Interfaces;
 
 
 interface HandlesErrors

@@ -39,7 +39,7 @@ if (! function_exists('arr_get')) {
    * @param  array  $array
    * @return mixed
    */
-  function arr_get($key, array $array)
+  function arr_get(array $array, $key)
   {
     $segments = is_array($key) ? $key : explode('.', $key);
 
@@ -108,7 +108,7 @@ if (! function_exists('safe_call')) {
    */
   function safe_call(array $block, array $callback = [])
   {
-    // Sample: in Token::verifyJWT()
+    // Sample: in JWToken::verifyJWT()
     /*$decoded = safe_mode([
       [JWT::class, 'decode'], [$token, $key, static::$algorithm]
     ]);
@@ -205,7 +205,7 @@ if (! function_exists('config')) {
     try {
       $config = require (''.$config_file.'');
 
-      return arr_get($key, $config);
+      return arr_get($config, $key);
     }
     catch (Exception $e){}
 

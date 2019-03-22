@@ -2,8 +2,9 @@
 
 namespace Orcses\PhpLib;
 
-use Orcses\PhpLib\Incs\HandlesError;
-use Orcses\PhpLib\Incs\HandlesErrors;
+
+use Orcses\PhpLib\Interfaces\HandlesErrors;
+use Orcses\PhpLib\Traits\HandlesError;
 
 
 class Validator implements HandlesErrors
