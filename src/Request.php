@@ -2,6 +2,8 @@
 namespace Orcses\PhpLib;
 
 
+use Orcses\PhpLib\Utility\Arr;
+
 class Request
 {
   /** @var Application */
@@ -12,32 +14,22 @@ class Request
   /** Specifies the routes to throttle */
   protected $throttle_routes = [];
 
-  private $data, $files;
+  private $method, $uri, $input, $files;
 
 
   protected function __construct($app = null){
     if($app){
       $this->app = $app;
     }
-
-    $this->validator = $this->app->build(Validator::class);
-
-    $this->request()->validate();
-
-    $this->boot();
   }
 
 
-  // The child class should override this function and use it to run more actions after __construct()
-  protected function boot(){
-    // ...
-  }
+  public static function capture(){
+    $request = new static();
 
+    //    Access::verifyCachedToken($this);
 
-  public static function capture($app){
-    $request = new static($app);
-
-    Auth::verifyCachedToken($this);
+    $request->getContents();
 
     return $request;
   }
@@ -48,8 +40,18 @@ class Request
   }
 
 
-  public function data(){
-    return $this->data;
+  public function method(){
+    return $this->method;
+  }
+
+
+  public function uri(){
+    return $this->uri;
+  }
+
+
+  public function input(string $field = ''){
+    return $field ? ($this->input[ $field ] ?? null) : $this->input;
   }
 
 
@@ -58,49 +60,50 @@ class Request
   }
 
 
-  public function validate(){
-    // --test
-    $this->data = [
-      'op' =>'0e', 'user' => 'GMO.com', 'password' => '10/10-jimoh', 'type' => 'u'
-    ];
+  protected function getContents(){
+    $this->method = $_SERVER['REQUEST_METHOD'];
 
-    $input = $this->data();
+    $this->uri = $_SERVER['REQUEST_URI'];
+
+    // ToDo: use the files content
+    if( !empty($_FILES)){
+      $this->files = $_FILES;
+    }
+
+    $input = json_decode( file_get_contents("php://input"),true);
+
+    if( ! empty($_POST['op'])) {
+      // If request includes a standard 'x-www-urlencoded-form' $_POST (e.g AngularJS file upload)
+      $input = $_POST;
+    }
+
+    if(empty($input)) {
+      // If empty request (e.g dev-server ping), set default op = server.ping
+      // This is necessary to handle empty request normally and prevent CORS error in the response
+      $input = [
+        'op' => Application::get_op('server.ping')
+      ];
+    }
+
+    $this->input = $input;
+  }
+
+
+  public function validate(Validator $validator){
+//    $this->validator = $this->app->build(Validator::class);
+
+//    $this->request()->validate();
+
+    $input = $this->input();
 
     $controller_class = $this->app->getControllerInstanceFromOp( $input['op'] );
 
     $rules = $controller_class->rules();
 
-    $errors = $this->validator->run($input, $rules);
+//    $errors = $this->validator->run($input, $rules);
+    $errors = $validator->run($input, $rules);
 
     $this->captured = compact('input', 'errors');
-
-    return $this;
-  }
-
-
-  /** @return $this */
-  protected function request(){
-    $request = json_decode(file_get_contents("php://input"),true);
-
-    // ToDo: use this
-    if( !empty($_FILES)){
-      $this->files = $_FILES;
-    }
-
-    if( ! empty($_POST['op'])) {
-      // If request includes a standard 'x-www-urlencoded-form' $_POST (e.g AngularJS file upload)
-      $request = $_POST;
-    }
-
-    if(empty($request)) {
-      // If empty request (e.g dev-server ping), set default op = server.ping
-      // This is necessary to handle empty request normally and prevent CORS error in the response
-      $request = [
-        'op' => Application::get_op('server.ping')
-      ];
-    }
-
-    $this->data = $request;
 
     return $this;
   }
@@ -114,8 +117,20 @@ class Request
     return self::retryOrFail($op, ['access', 3]);
   }
 
+
+  /**
+   * Abort the request if any unexpected error occurs e.g Controller not found (???)
+   * @return  Response
+   */
+  public static function abort(){
+    $result = Result::prepare(['App', 2]);
+
+    return Response::package( $result );
+  }
+
+
   protected function retry(){
-    $this->retryOrFail( $this->data['op'], ['App', 2], 5 );
+    $this->retryOrFail( $this->input['op'], ['App', 2], 5 );
   }
 
 
@@ -169,7 +184,7 @@ class Request
   public function run_upload(){
     $info = [];
 
-    list($error_number, $message) = (new PreUpload)->run( $this->data() );
+    list($error_number, $message) = (new PreUpload)->run( $this->input() );
 
     if( ! $upload_result = intval($error_number)){
       $info = $message;

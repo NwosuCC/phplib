@@ -4,31 +4,17 @@ use Orcses\PhpLib\Logger;
 use Orcses\PhpLib\Result;
 
 
-if (! function_exists('requires')) {
+if (! function_exists('app')) {
   /**
-   * Ensures all required constants are defined
+   * Return the Application instance
    *
-   * @param  array  $required_constants
-   * @param  bool  $should_throw If true, Exception will be thrown on error
-   * @throws Exception
-   * @return string
+   * @return \Orcses\PhpLib\Application
    */
-  function requires($required_constants, bool $should_throw = true)
+  function app()
   {
-    $missing = array_filter($required_constants, function ($param){
-      return !defined($param);
-    });
-
-    $error = $missing ? "Undefined constants: " . implode(', ', $missing) : '';
-
-    if($error && $should_throw){
-      throw new Exception($error);
-    }
-
-    return $error;
+    return \Orcses\PhpLib\Application::instance();
   }
 }
-
 
 if (! function_exists('arr_get')) {
   /**
@@ -52,6 +38,144 @@ if (! function_exists('arr_get')) {
     }
 
     return value($array);
+  }
+}
+
+if (! function_exists('base_dir')) {
+  /**
+   * Return the Application base directory
+   *
+   * @return string
+   */
+  function base_dir()
+  {
+    return app()->baseDir();
+  }
+}
+
+if (! function_exists('config')) {
+  /**
+   * Gets the value of a config setting.
+   *
+   * @param  string  $key
+   * @return mixed
+   */
+  function config($key)
+  {
+    $config_file = full_app_dir() . '/config/app.php';
+
+    try {
+      $config = require (''.$config_file.'');
+
+      return arr_get($config, $key);
+    }
+    catch (Exception $e){}
+
+    return null;
+  }
+}
+
+if (! function_exists('dd')) {
+  /**
+   * Call pr() and die() the script
+   *
+   * @param  mixed  $data
+   */
+  function dd(...$data)
+  {
+    foreach ($data as $v) {
+      pr($v, true);
+    }
+
+    exit();
+  }
+}
+
+if (! function_exists('real_dir')) {
+  /**
+   * Converts the directory path to the local OS format
+   * @param string $path
+   * @return string
+   */
+  function real_dir(string $path)
+  {
+    $path = str_replace('//', '/', $path);
+
+    return str_replace('/', DIRECTORY_SEPARATOR, $path);
+  }
+}
+
+if (! function_exists('real_url')) {
+  /**
+   * Converts the directory path to the http url format
+   * @param string $path
+   * @return string
+   */
+  function real_url(string $path)
+  {
+    $path = str_replace(DIRECTORY_SEPARATOR, '/', $path);
+
+    return str_replace('//', '/', $path);
+  }
+}
+
+if (! function_exists('env')) {
+  /**
+   * Gets the value of an environment variable.
+   *
+   * @param  string  $key
+   * @param  mixed   $default
+   * @return mixed
+   */
+  function env($key, $default = null)
+  {
+    $value = getenv($key);
+
+    if ($value === false) {
+      return value($default);
+    }
+
+    switch (strtolower($value)) {
+      case 'true':
+      case '(true)':
+        return true;
+      case 'false':
+      case '(false)':
+        return false;
+      case 'empty':
+      case '(empty)':
+        return '';
+      case 'null':
+      case '(null)':
+        return null;
+    }
+
+    if (($valueLength = strlen($value)) > 1 && $value[0] === '"' && $value[$valueLength - 1] === '"') {
+      return substr($value, 1, -1);
+    }
+
+    return $value;
+  }
+}
+
+if (! function_exists('log_info')) {
+  /**
+   * Logs info
+   *
+   * @param  string|array  $message
+   * @param  array  $callback
+   * @param  bool  $from_report   If true, generates [code, message] from global $_REPORTS
+   * @return mixed
+   */
+  function log_info($message, $callback = [], $from_report = false)
+  {
+    if(is_array($message)){
+      $message = ($from_report) ? (Result::prepare($message)[0] ?? '') : safe_call($message);
+    }
+
+    Logger::log('error', $message);
+
+    return safe_call($callback);
   }
 }
 
@@ -82,19 +206,28 @@ if (! function_exists('pr')) {
   }
 }
 
-if (! function_exists('dd')) {
+if (! function_exists('requires')) {
   /**
-   * Call pr() and die() the script
+   * Ensures all required constants are defined
    *
-   * @param  mixed  $data
+   * @param  array  $required_constants
+   * @param  bool  $should_throw If true, Exception will be thrown on error
+   * @throws Exception
+   * @return string
    */
-  function dd(...$data)
+  function requires($required_constants, bool $should_throw = true)
   {
-    foreach ($data as $v) {
-      pr($v, true);
+    $missing = array_filter($required_constants, function ($param){
+      return !defined($param);
+    });
+
+    $error = $missing ? "Undefined constants: " . implode(', ', $missing) : '';
+
+    if($error && $should_throw){
+      throw new Exception($error);
     }
 
-    exit();
+    return $error;
   }
 }
 
@@ -149,102 +282,5 @@ if (! function_exists('value')) {
   function value($value)
   {
     return $value instanceof Closure ? $value() : $value;
-  }
-}
-
-if (! function_exists('env')) {
-  /**
-   * Gets the value of an environment variable.
-   *
-   * @param  string  $key
-   * @param  mixed   $default
-   * @return mixed
-   */
-  function env($key, $default = null)
-  {
-    $value = getenv($key);
-
-    if ($value === false) {
-      return value($default);
-    }
-
-    switch (strtolower($value)) {
-      case 'true':
-      case '(true)':
-        return true;
-      case 'false':
-      case '(false)':
-        return false;
-      case 'empty':
-      case '(empty)':
-        return '';
-      case 'null':
-      case '(null)':
-        return null;
-    }
-
-    if (($valueLength = strlen($value)) > 1 && $value[0] === '"' && $value[$valueLength - 1] === '"') {
-      return substr($value, 1, -1);
-    }
-
-    return $value;
-  }
-}
-
-if (! function_exists('config')) {
-  /**
-   * Gets the value of a config setting.
-   *
-   * @param  string  $key
-   * @return mixed
-   */
-  function config($key)
-  {
-    $config_file = full_app_dir() . '/config/app.php';
-
-    try {
-      $config = require (''.$config_file.'');
-
-      return arr_get($config, $key);
-    }
-    catch (Exception $e){}
-
-    return null;
-  }
-}
-
-if (! function_exists('full_app_dir')) {
-  /**
-   * Gets the full path to project directory
-   * @return string
-   */
-  function full_app_dir()
-  {
-    $app_dir = str_replace('/', DIRECTORY_SEPARATOR, env('APP_DIR'));
-
-    $doc_root = stristr(__DIR__, $app_dir, true);
-
-    return $doc_root . $app_dir;
-  }
-}
-
-if (! function_exists('log_info')) {
-  /**
-   * Logs info
-   *
-   * @param  string|array  $message
-   * @param  array  $callback
-   * @param  bool  $from_report   If true, generates [code, message] from global $_REPORTS
-   * @return mixed
-   */
-  function log_info($message, $callback = [], $from_report = false)
-  {
-    if(is_array($message)){
-      $message = ($from_report) ? (Result::prepare($message)[0] ?? '') : safe_call($message);
-    }
-
-    Logger::log('error', $message);
-
-    return safe_call($callback);
   }
 }

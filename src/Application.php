@@ -2,23 +2,24 @@
 
 namespace Orcses\PhpLib;
 
-use Error;
 use Exception;
 use RuntimeException;
 use Orcses\PhpLib\Utility\Arr;
-use Orcses\PhpLib\Exceptions\ClassNotFoundException;
+use Orcses\PhpLib\Routing\Route;
 use Orcses\PhpLib\Exceptions\InvalidArgumentException;
-use Orcses\PhpLib\Exceptions\RoutesFileNotFoundException;
-use Orcses\PhpLib\Exceptions\ConfigurationFileNotFoundException;
 
 
 final class Application extends Foundation
 {
-  private static $instance, $bindings = [];
+  private static $instance;
 
-  protected static $routes, $route_names;
+  protected $namespace;
 
-  protected $config, $namespace;
+  /** @var \Orcses\PhpLib\Routing\Router */
+  protected $router;
+
+  /** @var \Orcses\PhpLib\Routing\Controller */
+  protected $controller;
 
 
   /**
@@ -45,38 +46,22 @@ final class Application extends Foundation
   {
     parent::__construct($base_dir);
 
-    /**
-     * Load the app configurations
-     */
-    $this->load_configurations();
-
     $this->set_default_timezone();
-
-    /**
-     * Each incoming API call has payload ['op' => '{value}'] where {value} is a two-character key
-     * that maps the Operation to its Controller method.
-     *
-     * The Controllers are loaded first since load_request_op_groups() depends on controllers_map
-     */
-    static::load_routes_controllers();
 
     // [Optional] Specify custom error handler for MysqlQuery operations
     if($this->config['exceptions.handler'] === 'log_info'){
       $this->use_log_info_handler();
     }
+
+    $this->router = $this->make('Router');
+//    $this->router = $this->make(\Orcses\PhpLib\Routing\Router::class);
+
+    $this->controller = $this->make('Controller');
   }
 
 
-  protected function load_configurations()
-  {
-    try {
-      $config = require ( $this->appRoot() . '/config/app.php'.'' );
-
-      $this->config = Arr::toDotNotation($config);
-    }
-    catch (Exception $e){
-      throw new ConfigurationFileNotFoundException();
-    }
+  public function config(string $key){
+    return $this->config[ $key ] ?? null;
   }
 
 
@@ -92,42 +77,9 @@ final class Application extends Foundation
   }
 
 
-  public static function routes()
-  {
-    return static::$routes;
-  }
-
-
-  public static function route_names()
-  {
-    return static::$route_names;
-  }
-
-
-  public static function getControllerFromName(string $name)
-  {
-    if(array_key_exists($name, $route_names = static::route_names())){
-
-      return static::getController( $route_names[ $name ] );
-    }
-
-    throw new Exception("Route with name '$name' does not exist");
-  }
-
-
-  public static function getController($op)
-  {
-    if(array_key_exists($op, $routes = static::routes())){
-      return $routes[ $op ];
-    }
-
-    throw new Exception("Operation with key '$op' does not exist");
-  }
-
-
   public static function get_op($controller)
   {
-    $controllers_map = static::route_names();
+    $controllers_map = Route::names();
 
     if(array_key_exists($controller, $controllers_map)){
       return $op = $controllers_map[ $controller ];
@@ -143,9 +95,9 @@ final class Application extends Foundation
   }
 
 
-  private static function use_log_info_handler()
+  private function use_log_info_handler()
   {
-    $target_classes = config('exceptions.target_classes') ?? [];
+    $target_classes = $this->config['exceptions.target_classes'];
 
     foreach ($target_classes as $class){
       $log_info_parameters = [
@@ -166,19 +118,65 @@ final class Application extends Foundation
   }
 
 
-  public function set_CORS_allowed_Urls()
-  {
-    $envUrls = explode(',', $this->config['http.cors.allow'] ?? '');
-
-    Response::set_CORS_allowed_Urls($envUrls);
-  }
-
-
   /**
    * @param \Orcses\PhpLib\Request $request
    * @return \Orcses\PhpLib\Response
    */
   public function handle(Request $request)
+  {
+    $this->router->loadRoutes();
+
+    // Get Matching Route
+    [$controller, $arguments] = $this->router->find( $request->method(), $request->uri() );
+
+    if( ! $controller){
+      $result = $request->abort();
+    }
+    else if(is_callable($controller)){
+      $result = call_user_func($controller, $arguments);
+    }
+    else {
+      // ToDo: try DI of $arguments here
+      [$controller, $method] = $this->controller->getClassAndMethod($controller);
+
+      $controller_class = $this->controller->makeInstanceFor($controller);
+
+      // Resolve controller method
+      $method = $this->container->resolveMethod($controller_class, $method, $arguments);
+
+//      call_user_func([$controller_class, $method], $arguments);
+
+
+      dd($controller, $controller_class, $method, $arguments);
+
+      $result = null;
+    }
+
+
+    /*$input = $request->input();
+      dd($input);
+
+    foreach($arguments as $key => $arg){
+      $arguments[ $key ] = $input[ $key ] ?? null;
+    }*/
+
+
+//    dd('$controller', $controller);
+
+
+    // Check Access
+//    $this->auth()->check();
+
+    // Check other Middleware
+
+
+    // Call Controller method
+
+
+
+    return Response::package( $result );
+  }
+/*public function handle(Request $request)
   {
     $captured = $request->captured();
 
@@ -195,20 +193,17 @@ final class Application extends Foundation
     }
 
     return Response::dispatch($result);
-  }
+  }*/
 
 
-  public function getAppNamespace(){
-    if (! is_null($this->namespace)) {
-      return $this->namespace;
-    }
+  protected function setAppNamespace(){
+    $composer = json_decode(file_get_contents($this->baseDir() .'/composer.json'), true);
 
-    $composer = json_decode(file_get_contents(full_app_dir() .'/composer.json'), true);
+    foreach ((array) Arr::get($composer, 'autoload.psr-4') as $namespace => $path) {
 
-    foreach ((array) arr_get($composer, 'autoload.psr-4') as $namespace => $path) {
       foreach ((array) $path as $pathChoice) {
-        dd($namespace, $path, $pathChoice, realpath($this->appRoot()), realpath(full_app_dir().'/'.$pathChoice));
-        if (realpath($this->appRoot()) == realpath(full_app_dir().'/'.$pathChoice)) {
+
+        if (realpath($this->appDir()) == realpath($this->baseDir().'/'.$pathChoice)) {
           return $this->namespace = $namespace;
         }
       }
@@ -218,9 +213,17 @@ final class Application extends Foundation
   }
 
 
-  public function getNamespace(string $for = '')
-  {
-    static::getAppNamespace();
+  public function getAppNamespace(){
+    if (is_null($this->namespace)) {
+      $this->setAppNamespace();
+    }
+
+    return $this->namespace;
+  }
+
+
+  public function getNamespace(string $for = ''){
+    $this->getAppNamespace();
 
     switch (strtolower($for)){
       case 'controllers' : {
@@ -237,80 +240,6 @@ final class Application extends Foundation
     }
 
     return $this->namespace . ($append ? $append .'\\' : '');
-  }
-
-
-  public function getClassAndMethod(string $controller)
-  {
-    return explode('@', $controller, 2);
-  }
-
-
-  public function getControllerInstanceFromOp($op)
-  {
-    return static::getControllerInstance(
-      static::getController( $op )
-    );
-  }
-
-
-  public function getControllerInstance($controller)
-  {
-    [$class] = static::getClassAndMethod($controller);
-
-    $name_spaced_class = static::getNamespace('Controllers') . $class;
-
-    return static::instance()->build( $name_spaced_class );
-  }
-
-
-  // ToDo: create and use facades (like in Aoo::make()) instead of full class namespaces
-  public function build(string $class_name)
-  {
-    if(! array_key_exists($class_name, static::$bindings)){
-      try {
-        // ToDo: how about class dependencies???  -  use Reflection
-        $class_instance = new $class_name();
-
-        static::$bindings[ $class_name ] = $class_instance;
-      }
-      catch (Error $e){}
-      catch (Exception $e){}
-
-      if( ! empty($e)){
-        throw new ClassNotFoundException( $class_name );
-      }
-    }
-
-    return static::$bindings[ $class_name ];
-  }
-
-
-  private function load_routes_controllers()
-  {
-    if(!static::$routes){
-      try {
-        $routes_map = require ( $this->appRoot() . '/routes/api.php'.'' );
-      }
-      catch (Exception $e){
-        throw new RoutesFileNotFoundException();
-      }
-
-      foreach($routes_map as $i => $values){
-
-        foreach($values as $key => $value){
-          $op = $i . $key;
-
-          [$controller, $name] = is_array($value) ? $value : [$value, ''];
-
-          if($name && ! is_numeric($name)){
-            static::$route_names[ $name ] = $op;
-          }
-
-          static::$routes[ $op ] = $controller;
-        }
-      }
-    }
   }
 
 

@@ -23,7 +23,7 @@ trait HandlesError
    * Holds the custom callback functions supplied to handle errors
    * Structure:
    *  [
-   *    'function' => (callable e.g 'in_array', [Auth::class, 'logout'], etc),
+   *    'function' => (callable e.g 'in_array', [Access::class, 'logout'], etc),
    *    'parameters' => (the arguments to pass to the callable e.g ['key', true], etc)
    *  ]
    */

@@ -9,7 +9,7 @@ class ConnectionManager
 {
   protected $driver;
 
-  protected $connections;
+  protected $connections = [];
 
 
   public function __construct()

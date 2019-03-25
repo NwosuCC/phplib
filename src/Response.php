@@ -5,7 +5,7 @@ namespace Orcses\PhpLib;
 
 class Response
 {
-  private static $CORS_allowed_Urls = '';
+  private $CORS_allowed_Urls;
 
   private $http_status_code, $http_status_message, $body;
 
@@ -17,14 +17,7 @@ class Response
   }
 
 
-  public static function set_CORS_allowed_Urls(array $allowed_Urls) {
-    $allowed_Urls = array_map('trim', $allowed_Urls);
-
-    static::$CORS_allowed_Urls = implode(',', $allowed_Urls);
-  }
-
-
-  public static function dispatch(Result $result){
+  public static function package(Result $result){
     [$http_code, $data] = $result->getResponseData();
 
     return new static($http_code, $data);
@@ -46,10 +39,24 @@ class Response
   }
 
 
-  public function setBody(array $data){
+  public function setBody(array $data)
+  {
     $this->body = $data;
 
     return $this;
+  }
+
+
+  public function set_CORS_allowed_Urls()
+  {
+    if( is_null($this->CORS_allowed_Urls)){
+
+      $envUrls = explode(',', app()->config('http.cors.allow'));
+
+      $allowed_Urls = array_map('trim', $envUrls);
+
+      $this->CORS_allowed_Urls = implode(',', $allowed_Urls);
+    }
   }
 
 

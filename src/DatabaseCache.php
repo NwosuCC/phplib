@@ -27,6 +27,7 @@ class DatabaseCache
     return $cache['value'] ?? null;
   }
 
+
   public static function store(string $key, string $value, int $expiration = 0){
     $table = 'cache';
 
@@ -48,4 +49,6 @@ class DatabaseCache
     return Queries::update_new($table, $update_values, $where)
       or Queries::insert_check_new($table, $update_values, $where);
   }
+
+  
 }

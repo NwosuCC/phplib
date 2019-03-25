@@ -24,12 +24,12 @@ class Result
   }
 
 
-  public function sendPrepared(array $result, array $info) {
+  /*public function sendPrepared(array $result, array $info) {
     $this->result = $result;
     $this->info = $info;
 
     return $this->composeResponse();
-  }
+  }*/
 
 
   public static function prepare($result){

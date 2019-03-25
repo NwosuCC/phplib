@@ -1,24 +1,26 @@
 <?php
 
-namespace Orcses\PhpLib\Auth;
+namespace Orcses\PhpLib\Access;
 
 use Exception;
 use Firebase\JWT\JWT;
+use Net\Models\User;
 use Orcses\PhpLib\Utility\Arr;
 use Orcses\PhpLib\Utility\Str;
 
 
 class JWToken
 {
-  private static $algorithm = ['HS256'];
+  protected static $algorithm = ['HS256'];
 
 
-  private static function key() {
+  protected static function key() {
     // ToDo: Refactor, import $app, throw Exception if not exists
     return env('APP_KEY');
   }
 
-  private static function keyId($payload) {
+
+  protected static function keyId($payload) {
     [$iat, $iss, $exp] = Arr::pickOnly(['iat', 'iss', 'exp'], $payload,false);
 
     $user_id = $payload['inf']['user_id'];
@@ -30,7 +32,8 @@ class JWToken
     return [$private_key, $public_key, $exp];
   }
 
-  public static function getJWT() {
+
+  public static function getToken($user_info = null) {
     $key = static::key();
 
     // ToDo: Refactor, import $app, throw Exception if not exists
@@ -41,7 +44,7 @@ class JWToken
       "nbf" => $now - 10,
       "exp" => $now + (60 * 60 * 24 * 1),  // 1 day
       "inf" => [
-        'user_id' => Auth::id() . Auth::user()->role
+        'user' => $user_info
       ]
     ];
 
@@ -60,7 +63,12 @@ class JWToken
     return [$private_key_id, $token, $expiry];
   }
 
-  public static function verifyJWT(string $token) {
+
+  public static function verifyToken(string $token) {
+    if(empty($token)){
+      return null;
+    }
+
     /**
      * You can add a leeway to access for when there is a clock skew times between
      * the signing and verifying servers. It is recommended that this leeway should
@@ -82,14 +90,11 @@ class JWToken
     $decoded_array = (array) $decoded;
     $decoded_array['inf'] = (array) $decoded_array['inf'];
 
-    $user = str_split($decoded_array['inf']['user_id']);
-
-    $user_role = array_pop($user);
-    $user_id = join('', $user);
+    $user_info = $decoded_array['inf']['user'];
 
     list($private_key_id, $public_key_id, $expiry) = static::keyId($decoded_array);
 
-    return [$private_key_id, $token, $expiry, $user_id, $user_role];
+    return [$private_key_id, $token, $expiry, $user_info];
   }
 
 }

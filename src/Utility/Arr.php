@@ -112,11 +112,32 @@ class Arr
   }
 
 
+  public static function where(array $array, callable $where){
+    return array_filter($array, function ($value) use($where){
+      return call_user_func($where, $value);
+    });
+  }
+
+
+  /**
+   * Returns true if the array is indexed array
+   * @param $array
+   * @return bool
+   */
+  public static function isIndexedArray(array $array){
+    $array_keys = array_keys($array);
+
+    $numeric_keys = static::where( $array_keys, 'is_numeric');
+
+    return count($numeric_keys) === count($array_keys);
+  }
+
+
   public static function toDotNotation(array $values){
     $flat_array = [];
 
     foreach($values as $key => $value){
-      if(is_array($value)){
+      if(is_array($value) && ! static::isIndexedArray($value)){
         foreach(static::toDotNotation($value) as $last_key => $last_value){
           $flat_array[ $key.'.'.$last_key ] = $last_value;
         }
@@ -127,6 +148,11 @@ class Arr
     }
 
     return $flat_array;
+  }
+
+
+  public static function get(array $array, $key){
+    return arr_get($array, $key);
   }
 
 
