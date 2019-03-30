@@ -23,7 +23,7 @@ class Auth implements Modelable
   const NOT_AUTHORIZED = 2;
   const PLS_CONTINUE = 3;
   const THROTTLE_DELAY = 6;
-  
+
 
   protected static $throttle_delay = 15;
 

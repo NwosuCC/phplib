@@ -4,7 +4,6 @@ namespace Orcses\PhpLib\Access;
 
 
 use Orcses\PhpLib\Cache\DatabaseCache;
-use Orcses\PhpLib\Request;
 
 
 class Token
