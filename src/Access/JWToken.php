@@ -21,11 +21,11 @@ class JWToken
 
 
   protected static function keyId($payload) {
-    [$iat, $iss, $exp] = Arr::pickOnly(['iat', 'iss', 'exp'], $payload,false);
+    [$iat, $iss, $exp] = Arr::pickOnly($payload, ['iat', 'iss', 'exp'],false);
 
-    $user_id = $payload['inf']['user_id'];
+    $user_info = $payload['inf']['user'];
 
-    $public_key = substr( Str::hashedPassword($iat . $iss . $user_id), 9);
+    $public_key = substr( Str::hashedPassword($iat . $iss . $user_info), 9);
 
     $private_key = md5($public_key . $exp . '%bd# Ax9(^@');
 
@@ -33,7 +33,7 @@ class JWToken
   }
 
 
-  public static function getToken($user_info = null) {
+  public static function getToken(string $user_info = null) {
     $key = static::key();
 
     // ToDo: Refactor, import $app, throw Exception if not exists

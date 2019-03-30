@@ -71,6 +71,7 @@ class Arr
     foreach($keys as $i => $value){
       $new_key = $keys[ $i ];
       $old_key = $old_keys[ $i ];
+
       $assoc_array_values[ $new_key ] = $index_array_values[] = $array[ $old_key ];
     }
 

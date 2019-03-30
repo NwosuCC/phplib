@@ -32,13 +32,15 @@ class Result
   }*/
 
 
-  public static function prepare($result){
+  public static function prepare(array $result){
     global $_REPORTS;
     static::$reports = $_REPORTS;
     $notice = [];
 
-    if( ! is_array($result) or count($result) < 2){
-      return null;
+    if(count($result) < 2){
+      throw new \OutOfRangeException(
+        "Result::prepare() expects argument \$result to be an array of at least two (2) items"
+      );
     }
 
     if( ! isset($result[2])){
@@ -97,6 +99,11 @@ class Result
       $result[1] = [$result[1], $notice];
     }
 
+    if(is_object($info)){
+      $info = (method_exists($info, 'toArray')) ? $info->toArray() : (array) $info;
+    }
+
+    pr(['result $info' => $info]);
     return new static($result, $info);
   }
 

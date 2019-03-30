@@ -31,6 +31,7 @@ class Str
     return ($has_char && $ends_with_char);
   }
 
+
   /**
    * Strips trailing character and returns the new value
    * @param string $value
@@ -44,6 +45,7 @@ class Str
 
     return $value;
   }
+
 
   /**
    * Sanitizes a string as SQL query
@@ -87,6 +89,7 @@ class Str
     return crypt($string, '$2a$09$'.$crypt_BlowFish_salt.'$');
   }
 
+
   public static function trimChars(string $value, string $char, int $chunk = 0){
     // ToDo: include escape characters
 
@@ -99,17 +102,21 @@ class Str
     return preg_replace($regex, $replace, $value);
   }
 
+
   public static function trimMultipleChars(string $value, string $char){
     return static::trimChars($value, $char, 1);
   }
+
 
   public static function trimSpaces(string $value, int $chunk = 0){
     return static::trimChars($value, ' ', $chunk);
   }
 
+
   public static function trimMultipleSpaces(string $value){
     return static::trimSpaces($value, 1);
   }
+
 
   public static function snakeCase(string $value){
     $split = str_split( static::trimMultipleSpaces($value));
@@ -122,6 +129,34 @@ class Str
 
     return implode('', $split);
   }
+
+
+  public static function titleCase(string $value){
+    return ucfirst( static::camelCase($value) );
+  }
+
+
+  public static function camelCase(string $value){
+    $split = str_split( static::trimMultipleSpaces($value));
+
+    $cap_next = false;
+
+    foreach($split as $i => $char){
+      if(preg_match("/[^A-Za-z0-9]/", $char)) {
+        $split[$i] = '';
+
+        $cap_next = true;
+      }
+      else {
+        $split[ $i ] = $cap_next ? strtoupper($char) : strtolower($char);
+
+        $cap_next = false;
+      }
+    }
+
+    return implode('', $split);
+  }
+
 
   public static function matchCase(string $case, string $value){
     $case = trim($case);
@@ -142,6 +177,7 @@ class Str
 
     return $match;
   }
+
 
 }
 

@@ -3,8 +3,8 @@
 namespace Orcses\PhpLib\Access;
 
 
-use Net\Models\User;
-use Orcses\PhpLib\DatabaseCache;
+use Orcses\PhpLib\Cache\DatabaseCache;
+use Orcses\PhpLib\Request;
 
 
 class Token
@@ -14,14 +14,13 @@ class Token
   }
 
 
-  public function grantFreshToken(User $user)
+  /**
+   * Retrieves a new token
+   * @param array  $user_info The user info to embed in the token
+   * @return string|null
+   */
+  public static function get(array $user_info = [])
   {
-    $user_info = [];
-
-    foreach($user->tokenFields() as $field){
-      $user_info[] = $user->getAttribute($field);
-    };
-
     list($key, $token, $expiry) = JWToken::getToken( implode('.', $user_info));
 
     if($saved = DatabaseCache::store($key, $token, $expiry)){
@@ -32,20 +31,25 @@ class Token
   }
 
 
-  public function verifyToken($token)
+  /**
+   * Retrieves a new token
+   * @param string  $token
+   * @return array
+   */
+  public static function verifyToken(string $token)
   {
     if($verified = JWToken::verifyToken($token)) {
 
       [$key, $token, $expiry, $user_info] = $verified;
 
-      if($isValidToken = DatabaseCache::fetch($key)){
+      if($isValidToken = DatabaseCache::get($key)){
         return [
           'token' => $token, 'user' => $user_info, 'expiry' => $expiry
         ];
       }
     }
 
-    return Auth::logout(3) ?? null;
+    return [];
   }
 
 

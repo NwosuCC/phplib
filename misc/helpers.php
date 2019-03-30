@@ -62,7 +62,7 @@ if (! function_exists('config')) {
    */
   function config($key)
   {
-    $config_file = full_app_dir() . '/config/app.php';
+    $config_file = base_dir() . '/config/app.php';
 
     try {
       $config = require (''.$config_file.'');
@@ -99,7 +99,7 @@ if (! function_exists('real_dir')) {
    */
   function real_dir(string $path)
   {
-    $path = str_replace('//', '/', $path);
+    return str_replace('//', '/', $path);
 
     return str_replace('/', DIRECTORY_SEPARATOR, $path);
   }
@@ -190,6 +190,8 @@ if (! function_exists('pr')) {
    */
   function pr($data, $json = true, $html = false)
   {
+    return;
+
     $newlines = ($html === true) ? '<br><br>' : "\n\n";
 
     switch (true) {

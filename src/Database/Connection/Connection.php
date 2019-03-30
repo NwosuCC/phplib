@@ -8,25 +8,57 @@ use Orcses\PhpLib\Interfaces\Connectible;
 
 abstract class Connection implements Connectible
 {
-  protected $driver;
+  protected $default;
 
-  protected $config;
+  protected $config = [];
 
-  protected $connections;
+  protected $connections = [];
+
+  /** The current database connected to */
+  protected $database;
 
 
   public function __construct($driver = '')
   {
-    $this->driver = $driver ?: config('database.driver');
-
-    $this->initialize();
+    $this->initialize($driver);
   }
+
 
   // Child classes can't override this method because it is final
-  final protected function initialize(){
+  final protected function initialize($driver)
+  {
+    if( ! app()->config($driver)){
+      $driver = $this->getDefaultConnection();
+    }
 
-    $this->config = config("database.{$this->driver}");
-
+    if($this->config = config("database.drivers.{$driver}")){
+      $this->setDatabase($this->config['database']);
+    }
   }
+
+
+  public function getDefaultConnection()
+  {
+    if( ! $this->default){
+      $this->default = config("database.default");
+    }
+
+    return $this->default;
+  }
+
+
+  /**
+   * Called during initialize(), this sets the database this connection is meant for
+   * @param string $database
+   */
+  public function setDatabase(string $database){
+    $this->database = $database;
+  }
+
+
+  public function getDatabase(){
+    return $this->database;
+  }
+
 
 }

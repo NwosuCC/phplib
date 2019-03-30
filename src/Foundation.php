@@ -12,7 +12,7 @@ use Orcses\PhpLib\Exceptions\ConfigurationFileNotFoundException;
 
 class Foundation
 {
-  protected $container, $instances = [], $facades = [];
+  protected $container, $facades = [];
 
   protected $booted = false;
 
@@ -93,7 +93,7 @@ class Foundation
   }
 
 
-  public function make(string $class_name){
+  public function make($class_name){
     if(array_key_exists($class_name, $this->facades)){
       return $this->facades[ $class_name ];
     }
@@ -105,27 +105,16 @@ class Foundation
   // ToDo: create and use facades (like in App::make()) instead of full class namespaces
   public function build(string $class_name)
   {
-    if( ! array_key_exists($class_name, $this->instances)){
-      try {
-        $class_instance = $this->container->get( $class_name );
-        pr(['build', $class_instance]);
-
-        $this->instances[ $class_name ] = $class_instance;
-      }
-      // ToDo: remove the dd() in catch(){} block
-      catch (Error $e){
-        dd('build Error', $e->getTrace());
-      }
-      catch (Exception $e){
-        dd('build Exception', $e->getMessage());
-      }
-
-      if( ! empty($e)){
-        throw new ClassNotFoundException( $class_name );
-      }
+    try {
+      return $this->container->get( $class_name );
     }
+    catch (Error $e){}
+    catch (Exception $e){}
 
-    return $this->instances[ $class_name ];
+    if( ! empty($e)){
+      dd('build Exception for ', $class_name, $e->getMessage());
+      throw new ClassNotFoundException( $class_name );
+    }
   }
 
 
@@ -158,6 +147,9 @@ class Foundation
     return [
       'Router' => \Orcses\PhpLib\Routing\Router::class,
       'Controller' => \Orcses\PhpLib\Routing\Controller::class,
+      'Validator' => \Orcses\PhpLib\Validator::class,
+//      'Auth' => \Orcses\PhpLib\Access\Auth::class,
+//      'Request' => \Orcses\PhpLib\Request::class,
     ];
   }
 

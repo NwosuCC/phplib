@@ -1,6 +1,6 @@
 <?php
 
-namespace Orcses\PhpLib\Exceptions;
+namespace Orcses\PhpLib\Exceptions\Routes;
 
 
 use RuntimeException;

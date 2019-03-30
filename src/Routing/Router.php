@@ -4,7 +4,12 @@ namespace Orcses\PhpLib\Routing;
 
 
 use Exception;
-use Orcses\PhpLib\Exceptions\RoutesFileNotFoundException;
+use Orcses\PhpLib\Exceptions\Routes\DuplicateRouteNamesException;
+use Orcses\PhpLib\Exceptions\Routes\DuplicateRoutesException;
+use Orcses\PhpLib\Exceptions\Routes\MethodNotSupportedException;
+use Orcses\PhpLib\Exceptions\Routes\RouteNotYetRegisteredException;
+use Orcses\PhpLib\Exceptions\Routes\RoutesFileNotFoundException;
+use Orcses\PhpLib\Utility\Arr;
 
 
 class Router
@@ -16,20 +21,26 @@ class Router
   protected static $instance;
 
 
-  protected const WEB = 'web', API = 'api';
+  public const WEB = 'web', API = 'api';
 
-  protected $route_space, $loaded = [], $route_spaces = [
-    self::WEB, self::API
-  ];
+  public const LOGIN = 'login';
 
 
-  protected $base_route;
+  protected static $route_file;
 
-  protected $methods = [
+  protected static $loaded = [], $exceptions = [];
+
+  protected static $route_spaces = [ self::WEB, self::API ];
+
+  protected static $base_route;
+
+  protected static $methods = [
     'get', 'post', 'put', 'patch', 'delete', 'options'
   ];
 
-  protected $routes = [], $route_names = [];
+  protected static $routes = [], $route_names = [];
+
+  protected $key, $name;
 
 
   public function __construct()
@@ -43,101 +54,187 @@ class Router
   }
 
 
-  public function currentNamespace()
+  protected static function currentRouteFile()
   {
-    return $this->route_space;
+    return static::$route_file;
   }
 
 
-  public function methods()
+  protected function methods()
   {
-    return $this->methods;
+    return static::$methods;
   }
 
 
-  public function routes()
+  public static function routes()
   {
-    return $this->routes;
+    return static::$routes;
   }
 
 
-  public function names()
+  public static function names()
   {
-    return $this->route_names;
+    return static::$route_names;
   }
 
 
-  public function setRouteSpace(string $route_space)
+  protected function setRouteFile(string $route_file)
   {
-    $this->route_space = $route_space;
+    static::$route_file = $route_file;
   }
 
 
-  protected function baseRoute(){
-    if( ! $this->base_route){
-      $this->base_route = '\\' . ltrim( base_dir(), realpath($_SERVER['DOCUMENT_ROOT']));
+  protected static function baseRoute()
+  {
+    if( ! static::$base_route){
+      static::$base_route = '\\' . ltrim( base_dir(), realpath($_SERVER['DOCUMENT_ROOT']));
     }
 
-    return real_url($this->base_route);
+    return real_url(static::$base_route);
   }
 
 
-  protected function routePath(string $uri){
+  protected static function routePath(string $uri)
+  {
     $clean_uri = strtolower( ltrim( real_url($uri)));
 
-    $route_path = '\\' . ltrim($clean_uri, $this->baseRoute());
+    $route_path = '\\' . ltrim($clean_uri, static::baseRoute());
 
     return real_url($route_path);
   }
 
 
-  protected function register(string $method, string $uri, $target, array $parameters = []){
-    $namespace = $this->currentNamespace();
+  protected function addException(string $exception_type, string $value = null, array $arguments = [])
+  {
+    if( ! array_key_exists($value, static::$exceptions[ $exception_type ] ?? [])){
+      static::$exceptions[ $exception_type ][ $value ] = $arguments;
+    }
 
-    $this->routes[ $namespace ][ $method ][ $uri ] = [$target, $parameters];
+    return true;
   }
 
 
-  public function find(string $method, string $uri)
+  protected function validateRoute($file, $key, array $arguments)
+  {
+    [$method, $uri] = $arguments;
+
+    if( ! in_array($method, $this->methods())){
+      $error = $this->addException(MethodNotSupportedException::class, $method, [$method]);
+//      throw new MethodNotSupportedException($method);
+    }
+    elseif( isset(static::$routes[ $file ][ $method ][ $uri ]) ){
+      $error = $this->addException(DuplicateRoutesException::class, $key, [$file, $method, $uri]);
+      //      throw new DuplicateRoutesException($file, $method, $uri);
+    }
+
+    return empty($error);
+  }
+
+
+  protected function register(string $method, string $uri, $target, array $parameters = [])
+  {
+    $file = $this->currentRouteFile();
+
+    $key = join('.', [$file, $method, $uri]);
+
+    if( ! $this->validateRoute($file, $key, [$method, $uri])){
+      return null;
+    }
+
+    static::$routes[ $file ][ $method ][ $uri ] = [$target, $parameters];
+
+    return $key;
+  }
+
+
+  protected function validateRouteName(string $name)
+  {
+    if( ! $key = $this->key or ! Arr::get(static::routes(), $key) ){
+      $error = $this->addException(RouteNotYetRegisteredException::class, $key, [$name]);
+    }
+    elseif( isset(static::$route_names[ $name ]) ){
+      $error = $this->addException(DuplicateRouteNamesException::class, $name, [$name]);
+    }
+
+    return empty($error);
+  }
+
+
+  protected function setName(string $name)
+  {
+    if( ! $this->validateRouteName($name)){
+      return null;
+    }
+
+    static::$route_names[ $name ] = $this->key;
+  }
+
+
+  public static function find(string $method, string $uri, string $route_space = null)
   {
     $method = strtolower($method);
 
-    $uri = $this->routePath($uri);
+    $uri = static::routePath($uri);
 
-    $namespace = $this->currentNamespace();
+    if( ! $route_space){
+      $route_space = static::currentRouteFile();
+    }
 
-    return $this->routes()[ $namespace ][ $method ][ $uri ] ?? null;
+    return static::routes()[ $route_space ][ $method ][ $uri ] ?? null;
   }
 
 
-  protected function loadNamespaceRoutes(){
-    try {
-      $file_path = app()->baseDir() . '/routes/'. $this->route_space .'.php';
+  public static function findByName(string $name)
+  {
+    $key = static::names()[ $name ] ?? null;
 
-      // To allow Route class load the various defined routes
-      usleep(1000);
+    return $key ? Arr::get(static::routes(), $key) : null;
+  }
+
+
+  protected static function loadNamespaceRoutes()
+  {
+    try {
+      $file_path = app()->baseDir() . '/routes/'. static::$route_file .'.php';
+
+      // To allow Routes class load the various defined routes
+//      usleep(10000);
 
       if(file_exists($file_path)){
-        require ( ''.$file_path.'' );
+        static::$loaded[] = static::$route_file;
 
-        $this->loaded[] = $this->route_space;
+        require ( ''.$file_path.'' );
       }
     }
     catch (Exception $e){}
   }
 
 
-  public function loadRoutes(){
-    if( ! $this->routes){
+  protected static function throwExceptions(){
+    foreach (static::$exceptions as $exception_type => $exceptions){
 
-      foreach ($this->route_spaces as $namespace){
-        $this->route_space = $namespace;
+      foreach ($exceptions as $value => $arguments){
+        throw new $exception_type(...$arguments);
+      }
+    }
+  }
 
-        $this->loadNamespaceRoutes();
+
+  public function loadRoutes()
+  {
+    if( ! static::$routes){
+
+      foreach (static::$route_spaces as $namespace){
+        static::$route_file = $namespace;
+
+        static::loadNamespaceRoutes();
       }
 
-      if( ! $this->loaded){
+      if( ! static::$loaded){
         throw new RoutesFileNotFoundException();
+      }
+      elseif (static::$exceptions){
+        static::throwExceptions();
       }
 
       // ToDo: cache all routes after loading

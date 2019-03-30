@@ -2,10 +2,10 @@
 
 namespace Orcses\PhpLib;
 
-use Exception;
+use Orcses\PhpLib\Access\Auth;
+use Orcses\PhpLib\Models\Model;
 use RuntimeException;
 use Orcses\PhpLib\Utility\Arr;
-use Orcses\PhpLib\Routing\Route;
 use Orcses\PhpLib\Exceptions\InvalidArgumentException;
 
 
@@ -60,8 +60,12 @@ final class Application extends Foundation
   }
 
 
-  public function config(string $key){
-    return $this->config[ $key ] ?? null;
+  public function config(string $key = ''){
+    if($key){
+      return $this->config[ $key ] ?? null;
+    }
+
+    return $this->config;
   }
 
 
@@ -74,18 +78,6 @@ final class Application extends Foundation
   public static function isLocal()
   {
     return static::environment() === 'local';
-  }
-
-
-  public static function get_op($controller)
-  {
-    $controllers_map = Route::names();
-
-    if(array_key_exists($controller, $controllers_map)){
-      return $op = $controllers_map[ $controller ];
-    }
-
-    throw new Exception("Specified controller '$controller' does not exist");
   }
 
 
@@ -126,32 +118,101 @@ final class Application extends Foundation
   {
     $this->router->loadRoutes();
 
-    // Get Matching Route
-    [$controller, $arguments] = $this->router->find( $request->method(), $request->uri() );
+    [$method, $uri, $route_space] = [$request->method(), $request->uri(), $request->routeSpace()];
 
+    // Get Matching Route
+    [$controller, $arguments] = $this->router->find( $method, $uri, $route_space );
+
+    // Abort request if controller is invalid
     if( ! $controller){
-      $result = $request->abort();
+      pr('checks 111');
+      $request::abort();
     }
-    else if(is_callable($controller)){
-      $result = call_user_func($controller, $arguments);
+    elseif($controller instanceof \Closure){
+      pr('checks 222');
+
+      $result = $controller->call($this, $arguments);
     }
     else {
-      // ToDo: try DI of $arguments here
+      pr('checks 333');
       [$controller, $method] = $this->controller->getClassAndMethod($controller);
 
+      // Resolve controller from DI Container
       $controller_class = $this->controller->makeInstanceFor($controller);
 
-      // Resolve controller method
-      $method = $this->container->resolveMethod($controller_class, $method, $arguments);
+      // Resolve controller method from DI Container
+      /** @var \ReflectionMethod $reflectorMethod */
+      [$reflectorMethod, $dependencies] = $this->container->resolveMethod($controller_class, $method);
 
-//      call_user_func([$controller_class, $method], $arguments);
+      // Validate and check Auth
 
 
-      dd($controller, $controller_class, $method, $arguments);
+      // Format Dependencies
+      foreach ($dependencies as $parameter_name => &$dep){
+//        $class_name = basename( get_class($dep));
 
-      $result = null;
+        if(is_a($dep, Request::class)){
+//          dd($class_name, $dep->input());
+
+          if(method_exists($dep, 'authorize') && ! $dep->authorize()){
+            $output = Auth::error(Auth::NOT_AUTHORIZED);
+            break;
+          }
+
+          if(method_exists($dep, 'rules')){
+            $request->validatesWith( $dep->rules() );
+
+            if($errors = $request->errors()){
+              $output = ['validation', 1, $errors];
+              break;
+            }
+          }
+
+//          $dep = $request->instance();
+//          dd($dep->input());
+
+          /*dd(
+            ['dep parameter name' => $parameter_name],
+            ['dep class name' => $class_name],
+            ['Request authorize' => method_exists($dep, 'authorize')],
+            ['Request transform' => method_exists($dep, 'transform')],
+            ['Request rules' => method_exists($dep, 'rules')]
+          );*/
+        }
+        elseif(is_a($dep, Model::class)){
+//          dd('$dep Model', $parameter_name, $class_name);
+
+          if(array_key_exists($parameter_name, $arguments)){
+            $dep = Model::newFromObj($dep, $arguments[ $parameter_name ]);
+          }
+        }
+
+      }
+
+      if(empty($output)){
+//      dd('$dependencies', $dependencies);
+        $dependencies = array_values($dependencies);
+
+        // Call Controller Method
+        $output = $reflectorMethod->invokeArgs($controller_class, $dependencies);
+      }
+
+//      dd(
+//        ['controller name' => $controller],
+//        ['controller class' => $controller_class],
+//        ['method name' => $method],
+//        ['method arguments' => $arguments],
+//        ['method reflector' => $reflectorMethod],
+//        ['method dependencies' => $dependencies],
+//        ['method $errors' => $errors]
+//      );
+
+      pr(['$output' => $output]);
+      $result = Result::prepare($output);
+      pr(['$result' => $result]);
     }
 
+//    dd('$result', $result);
 
     /*$input = $request->input();
       dd($input);
@@ -172,28 +233,11 @@ final class Application extends Foundation
 
     // Call Controller method
 
+    if(!$result) dd('No controller', $method, $uri, $route_space);
 
-
+//      dd('$result', $result);
     return Response::package( $result );
   }
-/*public function handle(Request $request)
-  {
-    $captured = $request->captured();
-
-    [$input, $errors] = Arr::pickOnly($captured, ['input', 'errors'], false);
-//    dd($input, $errors);
-
-    if($errors){
-      $result = Result::prepare([ 'validation', 1, ['v' => $errors] ]);
-    }
-    else {
-      $controller = static::getController( $input['op'] );
-
-      $result = '';
-    }
-
-    return Response::dispatch($result);
-  }*/
 
 
   protected function setAppNamespace(){

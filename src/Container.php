@@ -22,27 +22,32 @@ class Container
     if ($concrete === NULL) {
       $concrete = $abstract;
     }
+
     $this->instances[$abstract] = $concrete;
   }
 
 
   /**
+   * Returns a resolved instance
    * @param       $abstract
    * @param array $parameters
    * @return mixed
    */
   public function get($abstract, $parameters = [])
   {
-    if ( ! isset($this->instances[$abstract])) {
-      $this->set($abstract);
+    if ( ! array_key_exists($abstract, $this->instances)) {
+
+      $concrete = $this->resolve( $abstract, $parameters );
+
+      $this->set($abstract, $concrete);
     }
 
-    return $this->resolve( $this->instances[$abstract], $parameters );
+    return $this->instances[ $abstract ];
   }
 
 
   /**
-   * resolve single class
+   * Resolves a single class
    *
    * @param $concrete
    * @param $parameters
@@ -52,9 +57,9 @@ class Container
    */
   public function resolve($concrete, $parameters)
   {
-    pr(['resolve', $concrete]);
+//    pr(['resolve', $concrete]);
     if ($concrete instanceof Closure) {
-      pr(['Closure', $concrete]);
+//      pr(['Closure', $concrete]);
       return $concrete($this, $parameters);
     }
 
@@ -67,7 +72,7 @@ class Container
 
     // get class constructor
     $constructor = $reflector->getConstructor();
-    pr(['is_null($constructor)', is_null($constructor), '$constructor', $constructor]);
+//    pr(['is_null($constructor)', is_null($constructor), '$constructor', $constructor]);
 
     if (is_null($constructor)) {
       // get new instance from class
@@ -76,10 +81,10 @@ class Container
 
     // get constructor params
     $parameters = $constructor->getParameters();
-    pr(['$parameters', $parameters]);
+//    pr(['$parameters', $parameters]);
 
     $dependencies = $this->getDependencies($parameters);
-    pr(['$dependencies', $dependencies]);
+//    pr(['$dependencies', $dependencies]);
 
     // get new instance with dependencies resolved
     return $reflector->newInstanceArgs($dependencies);
@@ -91,29 +96,27 @@ class Container
    *
    * @param $concrete
    * @param $method
-   * @param $parameters
    *
    * @return mixed|object
    * @throws Exception
    */
-  public function resolveMethod($concrete, $method, $parameters)
+  public function resolveMethod($concrete, $method)
   {
     $reflector = new \ReflectionMethod($concrete, $method);
 
-    // get class constructor
-    $method_name = $reflector->getShortName();
-    $method_closure = $reflector->getClosure($concrete);
-    pr(['$method name', $method_name, '$method_closure', $method_closure]);
+//    $method_name = $reflector->getShortName();
+//    $method_closure = $reflector->getClosure($concrete);
+//    pr(['$method name', $method_name, '$method_closure', $method_closure]);
 
-    // get constructor params
     $parameters = $reflector->getParameters();
-    pr(['$method $parameters', $parameters]);
+//    pr(['$method $parameters', $parameters]);
 
     $dependencies = $this->getDependencies($parameters);
-    pr(['$method $dependencies', $dependencies]);
+//    pr(['$method $dependencies', $dependencies, 'instances', $this->instances]);
 
     // get new instance with dependencies resolved
-    return $reflector->invokeArgs($this, $dependencies);
+//    return $reflector->invokeArgs($concrete, $dependencies);
+    return [$reflector, $dependencies];
   }
 
 
@@ -128,21 +131,21 @@ class Container
   public function getDependencies($parameters)
   {
     $dependencies = [];
-    pr(['getDependencies', $parameters]);
+//    pr(['getDependencies', $parameters]);
 
     foreach ($parameters as $parameter) {
       /** @var \ReflectionParameter $parameter */
 
       // get the type hinted class
-      pr(['$parameter', $parameter]);
+//      pr(['$parameter', $parameter]);
       $dependency = $parameter->getClass();
 
-      pr(['$parameter', $parameter, '$dependency', $dependency,
-        'isDefaultValueAvailable', $def = $parameter->isDefaultValueAvailable(),
-        'getDefaultValue', ($def ? $parameter->getDefaultValue() : 'no-def'),
-//        'isDefaultValueConstant', $con = $parameter->isDefaultValueConstant(),
-//        'getDefaultValueConstantName', ($con ? $parameter->getDefaultValueConstantName() : 'no-con')
-      ]);
+//      pr(['$parameter', $parameter, '$dependency', $dependency,
+//        'isDefaultValueAvailable', $def = $parameter->isDefaultValueAvailable(),
+//        'getDefaultValue', ($def ? $parameter->getDefaultValue() : 'no-def'),
+////        'isDefaultValueConstant', $con = $parameter->isDefaultValueConstant(),
+////        'getDefaultValueConstantName', ($con ? $parameter->getDefaultValueConstantName() : 'no-con')
+//      ]);
 
       if ($dependency === NULL) {
 
@@ -158,7 +161,7 @@ class Container
       }
       else {
         // get dependency resolved
-        $dependencies[] = $this->get($dependency->name);
+        $dependencies[ $parameter->getName() ] = $this->get($dependency->name);
       }
     }
 

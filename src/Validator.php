@@ -78,7 +78,7 @@ class Validator implements HandlesErrors
 
   public static function clean($string)
   {
-    return stripslashes(htmlentities(trim($string)));
+    return stripslashes( htmlentities( trim($string)));
   }
 
 
@@ -298,6 +298,48 @@ class Validator implements HandlesErrors
   }
 
 
+  public function contains(string $string, $arguments = []){
+    $replaces = [];
+
+    foreach($arguments as $argument){
+      switch ($argument){
+        case 'letter' : {
+          if( ! preg_match('/[A-Za-z]/', $string)){
+            $replaces['letter'] = "one letter";
+          }
+          break;
+        }
+        case 'upper' : {
+          if( ! preg_match('/[A-Z]/', $string)){
+            $replaces['upper'] = "one upper-case letter";
+          }
+          break;
+        }
+        case 'lower' : {
+          if( ! preg_match('/[a-z]/', $string)){
+            $replaces['lower'] = "one lower-case letter";
+          }
+          break;
+        }
+        case 'digit' : {
+          if( ! preg_match('/[0-9]/', $string)){
+            $replaces['digit'] = "one digit";
+          }
+          break;
+        }
+        case 'char' : {
+          if( ! preg_match('/[^A-Za-z0-9]/', $string)){
+            $replaces['char'] = "one special character";
+          }
+          break;
+        }
+      }
+    }
+
+    return $replaces;
+  }
+
+
   public function confirmed($value, $confirm_value){
     if(empty($value) or empty($confirm_value) or $value !== $confirm_value){
       $this->failed_rule = true;
@@ -308,42 +350,7 @@ class Validator implements HandlesErrors
 
 
   public function password($password, $arguments = []){
-    $replaces = [];
-
-    foreach($arguments as $argument){
-      switch ($argument){
-        case 'letter' : {
-          if( ! preg_match('/[A-z]/', $password)){
-            $replaces['letter'] = "one letter";
-          }
-          break;
-        }
-        case 'upper' : {
-          if( ! preg_match('/[A-Z]/', $password)){
-            $replaces['upper'] = "one upper-case letter";
-          }
-          break;
-        }
-        case 'lower' : {
-          if( ! preg_match('/[a-z]/', $password)){
-            $replaces['lower'] = "one lower-case letter";
-          }
-          break;
-        }
-        case 'digit' : {
-          if( ! preg_match('/[0-9]/', $password)){
-            $replaces['digit'] = "one digit";
-          }
-          break;
-        }
-        case 'char' : {
-          if( ! preg_match('/[^A-z0-9]/', $password)){
-            $replaces['char'] = "one special character";
-          }
-          break;
-        }
-      }
-    }
+    $replaces = $this->contains($password, $arguments);
 
     if(empty($replaces)) {
       return $password;

@@ -10,21 +10,30 @@ class Response
   private $http_status_code, $http_status_message, $body;
 
 
-  public function __construct(int $http_code, array $data = []) {
-
+  public function __construct(int $http_code, array $data = [])
+  {
     $this->setHttpCode($http_code)->setBody($data);
 
+    $this->set_CORS_allowed_Urls();
   }
 
 
-  public static function package(Result $result){
+  public static function get(array $result)
+  {
+    return self::package( Result::prepare($result) );
+  }
+
+
+  public static function package(Result $result)
+  {
     [$http_code, $data] = $result->getResponseData();
 
     return new static($http_code, $data);
   }
 
 
-  public function setHttpCode($http_status_code){
+  public function setHttpCode($http_status_code)
+  {
     $http_status_message = '';
 
     if(is_array($http_status_code)){
@@ -60,14 +69,39 @@ class Response
   }
 
 
-  public function send() {
+  public function send()
+  {
     $this->sendHeaders();
 
     die(json_encode($this->body));
   }
 
+  /*public function send()
+  {
+    $http = new \HttpResponse();
 
-  private function sendHeaders() {
+    $headers = [
+      'Access-Control-Allow-Origin' => $this->CORS_allowed_Urls ?? '',
+      'Access-Control-Allow-Headers' => 'Content-Type',
+//      'Content-Type' => 'application/json',
+    ];
+
+    foreach($headers as $name => $value){
+      $http->setHeader($name, $value);
+    }
+
+    $http->setContentType('application/json');
+
+//    $http->setData(json_encode($this->body));
+    $http->status( $this->http_status_code );
+
+    $http->setData( $this->body );
+
+  }*/
+
+
+  private function sendHeaders()
+  {
     $http_status_code = $this->http_status_code ?: 200;
 
     $http_status_message = $this->http_status_message ?: '';
@@ -78,8 +112,8 @@ class Response
       ? 'Status:'
       : $_SERVER['SERVER_PROTOCOL'] ?? 'HTTP/1.0';
 
-    if(static::$CORS_allowed_Urls){
-      header('Access-Control-Allow-Origin: ' . static::$CORS_allowed_Urls);
+    if($this->CORS_allowed_Urls){
+      header('Access-Control-Allow-Origin: ' . $this->CORS_allowed_Urls);
     }
 
     header('Access-Control-Allow-Headers: Content-Type');

@@ -13,7 +13,7 @@ class Controller
 
   /*public function get($op)
   {
-    if(array_key_exists($op, $routes = Route::routes())){
+    if(array_key_exists($op, $routes = Routes::routes())){
       return $routes[ $op ];
     }
 
@@ -23,12 +23,12 @@ class Controller
 
   /*public function getFromRoute(string $name)
   {
-    if(array_key_exists($name, $route_names = Route::names())){
+    if(array_key_exists($name, $route_names = Routes::names())){
 
       return static::get( $route_names[ $name ] );
     }
 
-    throw new Exception("Route with name '$name' does not exist");
+    throw new Exception("Routes with name '$name' does not exist");
   }*/
 
 
