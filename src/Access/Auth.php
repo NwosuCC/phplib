@@ -3,7 +3,6 @@
 namespace Orcses\PhpLib\Access;
 
 
-use Orcses\PhpLib\Result;
 use Orcses\PhpLib\Request;
 use Orcses\PhpLib\Response;
 use Orcses\PhpLib\Utility\Str;
@@ -13,7 +12,7 @@ use Orcses\PhpLib\Routing\Router;
 use Orcses\PhpLib\Interfaces\Modelable;
 
 
-class Auth implements Modelable
+final class Auth implements Modelable
 {
   protected $table = 'users';
 
@@ -23,7 +22,7 @@ class Auth implements Modelable
   const NOT_AUTHORIZED = 2;
   const PLS_CONTINUE = 3;
   const THROTTLE_DELAY = 6;
-  
+
   protected static $throttle_delay = 15;
 
   protected static $auth, $token_fields = [];
@@ -44,13 +43,16 @@ class Auth implements Modelable
   }
 
 
+  /**
+   * @return array
+   */
   public static function success()
   {
     $replaces = [
       'name' => self::user()->name
     ];
 
-    $info = ['user' => self::user()];
+    $info = ['user' => self::user()->toArray()];
 
     return [self::REPORT_KEY, [0, $replaces], $info];
   }
@@ -168,11 +170,14 @@ class Auth implements Modelable
     ];
 
     if($result = $this->model->where($where)->first()){
+      pr(['authenticate $result' => $result]);
       $this->user = $result;
       $this->id = $this->user->getKey();
 
       // Set authenticated user once and for all
       static::$auth = $this;
+
+      static::auth()->user->removeAttribute('password');
     }
 
     return (!empty(Auth::user()));

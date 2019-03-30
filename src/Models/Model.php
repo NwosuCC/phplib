@@ -66,7 +66,7 @@ abstract class Model
 
   protected $where, $orWhere, $order, $limit, $tempSql;
 
-  protected $rows = [];
+  protected $rows = [], $single;
 
 
   public function __construct(array $attributes = []){
@@ -122,6 +122,10 @@ abstract class Model
     $model->exists = true;
 
     $model->setAppendedAttributes();
+
+    $model->stripHidden();
+
+    $model->single = true;
 
     return $model;
   }
@@ -199,6 +203,7 @@ abstract class Model
 
   public function getAttribute($key){
     if( ! $this->hasAttribute($key)){
+      dd('Not hasAttribute', $this->attributes, get_class($this));
       throw new ModelAttributeNotFoundException($this->getModelName(), $key);
     }
 
@@ -217,6 +222,22 @@ abstract class Model
 
   public function imposeAttribute(string $key, $value){
     $this->attributes[ $key ] = $value;
+
+    return $this;
+  }
+
+
+  public function removeAttribute(string $key){
+    unset( $this->attributes[ $key ] );
+
+    return $this;
+  }
+
+
+  public function removeAttributes(array $columns = []){
+    foreach ($columns as $key){
+      $this->removeAttribute( $key );
+    }
 
     return $this;
   }
@@ -265,6 +286,11 @@ abstract class Model
 
   protected function stripGuarded(){
     return $this->except( $this->guarded );
+  }
+
+
+  protected function stripHidden(){
+    return $this->removeAttributes( $this->hidden );
   }
 
 
@@ -494,34 +520,60 @@ abstract class Model
       ->whereRaw(['query' => '1', 'values' => []]) // WHERE 1
       ->select();
 
-    return $model->rows();
+    return $model->get();
   }
 
 
-  public function hydrate() {
+  public function get(){
+    $this->rows();
+
+    return $this;
+  }
+
+
+  public function toArray() {
+    return $this->dehydrate();
+  }
+
+
+  protected function hydrate() {
     pr(['hydrate 111' => get_class($this), 'rows' => $this->rows]);
     pr(['hydrate pseudo_object' => $ao = $this->pseudo_object, 'table' => $ao ? $ao->getTable() : null]);
 
     foreach($this->rows as &$row){
-      $row = $this->newFromExisting((array) $row);
+      $row = $this->newFromExisting( (array) $row );
       pr([
         'hydrate lazy_load' => $row->lazy_load,
         'hydrate class' => get_class($row),
         'hydrate getTable' => method_exists($row, 'getTable'),
-        'hydrate table' => $row->getTable()
+        'hydrate table' => $row->table
       ]);
     }
+    pr(['hydrate 111 - 2 $row' => $this->rows]);
   }
 
 
-  public function dehydrate() {
-    foreach($this->rows as &$row){
+  protected function dehydrate() {
+    pr(['dehydrate 222' => get_class($this), 'selected' => $this->single, 'rows' => $this->rows]);
+
+    /*if( ! $this->selected){
+      return $this->selected;
+    }*/
+
+    $multiple = empty($this->single);
+
+    $rows = $multiple ? $this->rows : [$this];
+
+    foreach($rows as &$row){
+      if(!is_object($row)) dd('$rowee', $row);
       $row = $row->getAttributes();
     }
+
+    return $multiple ? $rows : $rows[0];
   }
 
 
-  protected function rows() {
+  public function rows() {
     pr(['rows 000' => get_class($this), 'rowsss' => $this->rows]);
 
     if( ! $this->result){
@@ -542,9 +594,7 @@ abstract class Model
 
 
   public function first(){
-    $first = ($rows = $this->rows()) ? reset($rows) : null;
-    pr(['$first' => $first]);
-    return $first;
+    return ($rows = $this->rows()) ? reset($rows) : null;
   }
 
 
@@ -559,7 +609,11 @@ abstract class Model
    * @return array
    */
   public function only($columns){
-    return Arr::each($this->rows(), [Arr::class, 'pickOnly'], (array) $columns);
+    foreach ($this->rows() as &$row){
+      $row->removeAttribute($columns);
+    }
+
+    return $this->rows;
   }
 
 
@@ -588,11 +642,6 @@ abstract class Model
     }
 
     return $this;
-  }
-
-
-  public function get(){
-    return $this->rows();
   }
 
 
@@ -697,15 +746,6 @@ abstract class Model
   public function __get(string $attribute)
   {
     return $this->getAttribute($attribute);
-  }
-
-
-  public function toArray() {
-    $this->rows();
-
-    $this->dehydrate();
-
-    return (array) $this->rows;
   }
 
 

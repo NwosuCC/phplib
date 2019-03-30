@@ -99,9 +99,11 @@ class Result
       $result[1] = [$result[1], $notice];
     }
 
-    if(is_object($info)){
-      $info = (method_exists($info, 'toArray')) ? $info->toArray() : (array) $info;
-    }
+    /*foreach ($info as $key => $value){
+      if(is_object($value)){
+        $info[ $key ] = (method_exists($value, 'toArray')) ? $value->toArray() : (array) $info;
+      }
+    }*/
 
     pr(['result $info' => $info]);
     return new static($result, $info);
