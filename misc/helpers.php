@@ -190,7 +190,9 @@ if (! function_exists('pr')) {
    */
   function pr($data, $json = true, $html = false)
   {
-    if(!is_array($data) || ! array_key_exists('tmp', $data)) return;
+    $allow = '???';
+    $allow = 'tmp';
+    if(!is_array($data) || ! array_key_exists($allow, $data)) return;
 
     $newlines = ($html === true) ? '<br><br>' : "\n\n";
 

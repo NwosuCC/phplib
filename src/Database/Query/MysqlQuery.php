@@ -19,7 +19,9 @@ class MysqlQuery extends Query {
 
   private $caller = '';
 
-  private $sql,$tempSql, $where, $orWhere, $order, $limit, $doNotModify;
+  private $sql, $tempSql, $doNotModify;
+
+  private $wheres = [], $where, $orWhere, $order, $limit;
 
   private $sqlMethod, $multi = [], $isNewQuery = false, $assoc = false;
 
@@ -121,6 +123,7 @@ class MysqlQuery extends Query {
 
   /**
    * E.g given "w.status", returns ['w', 'status']
+   *     given "1.sn", returns ['', 'sn']
    * @param string $column
    * @return array
    */
@@ -128,7 +131,11 @@ class MysqlQuery extends Query {
   {
     $parts = Str::splitByChar($column, '.');
 
-    return Arr::pad($parts, -2, '');
+    if(is_numeric($parts[0])){
+      $parts[0] = '';
+    }
+
+    return count($parts) >= 2 ? $parts : Arr::pad($parts, -2, '');
   }
 
 
@@ -144,6 +151,7 @@ class MysqlQuery extends Query {
     return Arr::pad($aliases, 2, '');
   }
 
+
   private static function isRawData(string $type, string $value = null)
   {
     if(is_null($value)){
@@ -153,7 +161,9 @@ class MysqlQuery extends Query {
     $types = ['c', 'q', 'v', 'b'];
 
     if( ! in_array($type, $types)){
-      static::throwError('Invalid argument "type" ['. $type .'] supplied', __FUNCTION__);
+      static::throwError(
+        'Invalid argument "type" ['. $type .'] supplied', __FUNCTION__
+      );
     }
 
     $marker = "|$type";
@@ -398,7 +408,7 @@ class MysqlQuery extends Query {
   /**
    * Resets and returns the stored 'OR' where clause
    */
-  protected function getOrWhere()
+  public function getOrWhere()
   {
     $orWhere = $this->orWhere;
 
@@ -407,13 +417,49 @@ class MysqlQuery extends Query {
 
 
   /**
-   * Resets and returns the stored where clause including the 'OR' where clause
+   * Resets and returns the stored where clause
    */
-  protected function getWhere()
+  public function getWhere()
   {
     $where = $this->where;
 
-    return ($this->where = '') ?: $where .' '. $this->getOrWhere();
+    return ($this->where = '') ?: $where;
+  }
+
+  /**
+   * Returns the stored where clause for further in-code processing
+   */
+  public function getTmpWhere(){
+    pr(['tmp' => __FUNCTION__, '$this->wheres Tmp' => $this->wheres, '$this->>where' => $this->where, '$this->orWhere' => $this->orWhere]);
+    return $this->getWhereClause(false);
+  }
+
+
+  /**
+   * Returns the stored where clause including the 'OR' where clause for sql execution
+   * @param bool $final
+   * @return string
+   */
+  public function getWhereClause(bool $final = true)
+  {
+    pr(['tmp' => __FUNCTION__, '$this->wheres 111' => $this->wheres, '$this->>where' => $this->where, '$this->orWhere' => $this->orWhere, '$final' => $final]);
+
+    $orWhere = $this->getOrWhere();
+
+    $where = $this->getWhere() . ' ' . $orWhere;
+
+    if($final){
+      if($orWhere){
+        $this->wheres[] = $orWhere;
+      }
+
+      $where = $this->wheres ? implode(' ', $this->wheres) : $where;
+
+      $where = $where ? 'WHERE ' . $where : '';
+    }
+
+    pr(['tmp' => __FUNCTION__, '$this->wheres 222' => $this->wheres, '$this->>where' => $this->where, '$this->orWhere' => $this->orWhere, '$where' => $where]);
+    return trim($where);
   }
 
 
@@ -472,6 +518,7 @@ class MysqlQuery extends Query {
     return ($this->tempSql = '') ?: $tempSql;
   }
 
+
   /**
    * Resets and returns the stored main query only
    */
@@ -494,6 +541,7 @@ class MysqlQuery extends Query {
 
     return $sql;
   }
+
 
   /**
    * Returns the last executed sql
@@ -842,7 +890,7 @@ class MysqlQuery extends Query {
    */
   public function rawQuery(array $values, string $query = '')
   {
-    $this->caller = $this->caller() ?: 'rawQuery';
+    $this->caller = $this->caller() ?: __FUNCTION__;
 
     return $this->setQueryValues($values, $query);
   }
@@ -854,224 +902,140 @@ class MysqlQuery extends Query {
    */
   public function whereRaw(array $values, string $query = '')
   {
-    $this->caller = $this->caller() ?: 'whereRaw';
+    $this->caller = $this->caller() ?: __FUNCTION__;
 
-    $this->where = 'WHERE ' . $this->setQueryValues($values, $query);
-
-    return $this;
-  }
-
-
-  public function orWhere(array $columns_values)
-  {
-    $value = $or_values = [];
-
-    $this->sql = 1;
-    pr(['tmp '.$this->sql => __FUNCTION__, 'start OR $columns_values' => $columns_values]);
-
-    foreach($columns_values as $column => $value){
-      pr(['tmp' => __FUNCTION__, 'start OR loop $column' => $column, '$value' => $value]);
-
-      $this->sql += 1;
-      if($this->sql > 100) exit;
-
-      if(is_numeric($column) && is_array($value)){
-        $old_value = $value;
-
-        $value = static::orWhere($old_value)->getOrWhere();
-
-        $or_values[ $column ] = $value;
-        pr(['tmp' => __FUNCTION__, 'or where recurse value' => $value, '$or_values' => $or_values, '$column' => $column, '$old_value' => $old_value]);
-
-      }
-      else {
-        foreach ($value as $c => $val){
-          $next_val = is_numeric($c) ? $val : [$c => $val];
-          pr(['tmp' => __FUNCTION__, 'start OR inner loop $c' => $c, '$val' => $val, 'is_numeric($c)' => is_numeric($c), '$next_val' => $next_val]);
-
-          $where_clause = '';
-
-          if($next_val){
-            $where_clause = $this->where($next_val)->getWhere();
-
-            $where_clause = trim( str_replace('WHERE', '', $where_clause));
-          }
-
-          // Remove the original key. At the end, only the non-OR values will remain in $value, for count($value) eval
-          unset( $value[ $c ] );
-
-          if(is_numeric($c)){
-            // If there is at least one non-OR value in $value, prepend this OR group with 'OR'
-            $or_values[ "_oR_$c|b" ] = $where_clause;
-          }
-          else {
-            $value[] = $where_clause;
-          }
-        }
-
-      }
-    }
-
-    // Must be a processed OR group
-    $value = Arr::stripEmpty($value);
-    $or_values = Arr::stripEmpty($or_values);
-
-    foreach($or_values as $i => $or_val){
-      $or_values[ $i ] = '('. $or_val .')';
-    }
-
-    $or_values = implode(' OR ', $or_values);
-
-    if($value){
-      $or_values = ($or_values ? ' OR ' : '') . $or_values;
-      $value = implode(' AND ', $value);
-
-      $value = $value ? 'OR ('. $value . $or_values .')' : '';
-    }
-
-    $this->orWhere = $value;
+    $this->where = 'WHERE ' . trim($this->setQueryValues($values, $query));
 
     return $this;
   }
 
 
-  /*public function orWhere(array $columns_values)
+  public function orWhere($column, $operator = null, $value = null)
   {
-    $value = $or_values = [];
+    if($where = $this->getTmpWhere()){
+      $this->wheres[] = $where;
+    }
 
-    $this->sql = 1;
-    pr(['tmp '.$this->sql => __FUNCTION__, 'start OR $columns_values' => $columns_values]);
+    $columns_values = $this->getWhereColumnValues($column, $operator, $value);
+
+    $where_and = $where_or = [];
 
     foreach($columns_values as $column => $value){
-      pr(['tmp' => __FUNCTION__, 'start OR loop $column' => $column, '$value' => $value]);
-
-      $this->sql += 1;
-      if($this->sql > 100) exit;
 
       if(is_numeric($column) && is_array($value)){
-        $old_value = $value;
+        $where = $this->orWhere($value)->getOrWhere();
 
-        $value = static::orWhere($old_value)->getOrWhere();
-
-        $or_values[ $column ] = $value;
-        pr(['tmp' => __FUNCTION__, 'or where recurse value' => $value, '$or_values' => $or_values, '$column' => $column, '$old_value' => $old_value]);
-
+        $where_or[] = Str::stripLeadingChar( $where, 'OR' );
       }
       else {
-        foreach ($value as $c => $val){
-          $next_val = is_numeric($c) ? $val : [$c => $val];
-          pr(['tmp' => __FUNCTION__, 'start OR inner loop $c' => $c, '$val' => $val, 'is_numeric($c)' => is_numeric($c), '$next_val' => $next_val]);
-
-          $where_clause = '';
-
-          if($next_val){
-            $where_clause = $this->where($next_val)->getWhere();
-
-            $where_clause = trim( str_replace('WHERE', '', $where_clause));
-          }
-
-          // Remove the original key. At the end, only the non-OR values will remain in $value, for count($value) eval
-          unset( $value[ $c ] );
-
-          if(is_numeric($c)){
-            // If there is at least one non-OR value in $value, prepend this OR group with 'OR'
-            $or_values[ "_oR_$c|b" ] = $where_clause;
-          }
-          else {
-            $value[] = $where_clause;
-          }
-        }
-
+        $where_and[] = trim( $this->where([$column => $value])->getTmpWhere());
       }
     }
 
-    // Must be a processed OR group
-    $value = Arr::stripEmpty($value);
-    $or_values = Arr::stripEmpty($or_values);
+    $where_or = trim( implode(' OR ', $where_or));
 
-    foreach($or_values as $i => $or_val){
-      $or_values[ $i ] = '('. $or_val .')';
+    pr(['tmp' => __FUNCTION__, 'OR initial $where_and' => $where_and, '$where_or' => $where_or]);
+
+    if($where_and){
+      $where_or = $where_or ? ' OR ('. $where_or .')' : '';
+
+      $where_and = trim( implode(' AND ', $where_and));
+
+      $where_or = $where_and ? 'OR ('. $where_and . $where_or .')' : '';
     }
 
-    $or_values = implode(' OR ', $or_values);
+    pr(['tmp' => __FUNCTION__, 'OR final $where_and' => $where_and, '$where_or' => $where_or]);
 
-    if($value){
-      $or_values = ($or_values ? ' OR ' : '') . $or_values;
-      $value = implode(' AND ', $value);
-
-      $value = $value ? 'OR ('. $value . $or_values .')' : '';
-    }
-
-    $this->orWhere = $value;
+    $this->orWhere = $where_or;
 
     return $this;
-  }*/
+  }
 
-  /*public function orWhere(array $columns_values)
-  {
-    $value = $or_values = [];
 
-    pr(['tmp' => __FUNCTION__, 'start OR $columns_values' => $columns_values]);
-
-    foreach($columns_values as $column => $value){
-      pr(['tmp' => __FUNCTION__, 'start OR loop $column' => $column, '$value' => $value]);
-
-      foreach ($value as $c => $val){
-        $next_val = is_numeric($c) ? $val : [$c => $val];
-        pr(['tmp' => __FUNCTION__, 'start OR inner loop $c' => $c, '$val' => $val, '$next_val' => $next_val]);
-
-        $where_clause = '';
-
-        if($next_val){
-          $where_clause = $this->where($next_val)->getWhere();
-
-          $where_clause = trim( str_replace('WHERE', '', $where_clause));
-        }
-
-        // Remove the original key. At the end, only the non-OR values will remain in $value, for count($value) eval
-        unset( $value[ $c ] );
-
-        if(is_numeric($c)){
-          // If there is at least one non-OR value in $value, prepend this OR group with 'OR'
-          $or_values[ "_oR_$c|b" ] = $where_clause;
-        }
-        else {
-          $value[] = $where_clause;
-        }
-      }
+  public function andWhere($column, $operator = null, $value = null){
+    if($where = $this->getTmpWhere()){
+      $this->wheres[] = $where;
     }
 
-    // Must be a processed OR group
-    $value = Arr::stripEmpty($value);
-    $or_values = Arr::stripEmpty($or_values);
+    $where = $this->where($column, $operator, $value)->getTmpWhere();
 
-    foreach($or_values as $i => $or_val){
-      $or_values[ $i ] = '('. $or_val .')';
-    }
-
-    $or_values = implode(' OR ', $or_values);
-
-    if($value){
-      $or_values = ($or_values ? ' OR ' : '') . $or_values;
-      $value = implode(' AND ', $value);
-
-      $value = $value ? 'OR ('. $value . $or_values .')' : '';
-    }
-
-    $this->orWhere = $value;
+    $this->wheres[] = 'AND (' . trim($where) . ')';
+    pr(['tmp' => __FUNCTION__, '222 $where' => $where, '$this->wheres' => $this->wheres]);
 
     return $this;
-  }*/
+  }
 
 
-  public function where(array $columns_values)
+  public function where($column, $operator = null, $value = null)
   {
+    $this->where = $this->orWhere = null;
+
+    $columns_values = $this->getWhereColumnValues($column, $operator, $value);
+
     if( ! $columns_values){
       static::throwError(
         'Example: ["name" => $name, "email" => $email], ["3|v" => ["!=", "status"]]', __FUNCTION__
       );
     }
 
+    $where_and = $where_or = [];
+
+    foreach($columns_values as $column => $value){
+
+      if($is_OR_value = is_numeric($column) and is_array($value)){
+
+        $where_or[] = trim( $this->orWhere([$column => $value])->getOrWhere() );
+      }
+      else {
+        $column_is_blank = static::isBlank($column);
+
+        $column = $this->add_quotes_Columns($column);
+
+        if($column_is_blank){
+          $column = $operator = '';
+        }
+        else {
+          [$operator, $value] = $this->getOperatorValue( $value );
+        }
+
+        $where_and[] = ($where_and ? 'AND ' : '') . trim("$column $operator $value");
+      }
+    }
+
+    pr(['tmp' => __FUNCTION__, 'where_and 00' => $where_and, '$where_or' => $where_or, '$this->where' => $this->where]);
+    if($where_or){
+      $where_or = '(' . implode(' OR ', $where_or) . ')';
+
+      $where_and[] = ($where_and ?  'OR ' : '') . $where_or;
+    }
+
+    pr(['tmp' => __FUNCTION__, 'where_and 11' => $where_and, '$this->where' => $this->where]);
+
+    $this->where = ($where_and) ? implode(' ', $where_and) : '';
+
+    pr(['tmp' => __FUNCTION__, 'where_and 22' => $where_and, '$this->where' => $this->where]);
+
+    return $this;
+  }
+
+
+  protected function getWhereColumnValues($column, $operator = null, $value = null)
+  {
+    if(is_array($column)) {
+      $columns_values = $column;
+    }
+    elseif(func_num_args() === 2){
+      $columns_values = [$column => ($value = $operator)];
+    }
+    else {
+      $columns_values = [ $column => [$operator, $value] ];
+    }
+
+    return $columns_values;
+  }
+
+
+  protected function getOperatorValue($value){
     $ops = [
       'equals' => $equals = ['=', '!=', '<', '<=', '>', '>='],
       'in' => $in = ['IN','NOT IN'],
@@ -1079,82 +1043,32 @@ class MysqlQuery extends Query {
       'between' => $between = ['BETWEEN','NOT BETWEEN'],
     ];
 
-    $where_array = $or_values = [];
-    pr(['tmp' => __FUNCTION__, 'start $columns_values' => $columns_values]);
-
-
-    foreach($columns_values as $column => $value){
-      $join = 'AND';
-
-      if(is_numeric($column) && is_array($value)){
-        $join = '';
-//        $value = static::orWhere([$column => $value])->getOrWhere();
-
-        $or_values[ $column ] = $value;
-        pr(['tmp' => __FUNCTION__, 'or where stores' => $value, '$or_values' => $or_values]);
-      }
-
+    if( ! is_array($value)){
       $operator = '=';
 
-      $column_is_blank = static::isBlank($column);
+      $value = $this->add_quotes_Values($value);
+    }
+    else {
+      $operator = strtoupper( trim( array_shift($value)));
 
-      $column = $this->add_quotes_Columns($column);
+      $value = $this->add_quotes_Values( Arr::unwrap($value) );
 
-      if(!$join or $column_is_blank){
-        $column = $operator = '';
-
+      if( in_array($operator, $ops['between']) ){
+        $value = $value[0] .' AND '. $value[1];
       }
-      else if( ! is_array($value)){
-        list($value) = $this->add_quotes_Values([$value]);
+      else if( in_array($operator, $ops['equals_in']) ){
 
-      }
-      else {
-        $operator = strtoupper( trim( array_shift($value)));
-
-        $value = $this->add_quotes_Values( Arr::unwrap($value) );
-
-        if( in_array($operator, $ops['between']) ){
-          $value = $value[0] .' AND '. $value[1];
+        if(in_array($operator, $ops['in'])){
+          $value = '(' . implode(',', $value) . ')';
         }
-        else if( in_array($operator, $ops['equals_in']) ){
 
-          if(in_array($operator, $ops['in'])){
-            $value = '(' . implode(',', $value) . ')';
-          }
-          if(in_array($operator, $ops['equals'])){
-            $value = array_shift($value);
-          }
+        if(in_array($operator, $ops['equals'])){
+          $value = array_shift($value);
         }
       }
-
-      $join = count($where_array) ? "$join " : '';
-
-      if( ! is_array($value)){
-        $where_array[] = $join . trim("$column $operator $value");
-      }
     }
 
-    foreach ($or_values as $column => $value){
-      $old_val = $value;
-      pr(['tmp' => __FUNCTION__, '$old_val b4 recursion' => $old_val, '$column' => $column, '$or_values' => $or_values]);
-
-      $value = static::orWhere([$column => $value])->getOrWhere();
-
-      $where_array[] = $value;
-      pr(['tmp' => __FUNCTION__, 'or where value' => $value, '$old_val' => $old_val]);
-    }
-
-    if($or_values && count($where_array) === count($or_values)){
-      $where_array[0] = str_replace('OR ', '', $where_array[0]);
-    }
-
-    pr(['tmp' => __FUNCTION__, 'where array 11' => $where_array, '$or_values' => $or_values, 'clause' => $this->where]);
-
-    $this->where = ($where_array) ? "WHERE " . implode(' ', $where_array) : '';
-
-    pr(['tmp' => __FUNCTION__, 'where array 22' => $where_array, '$or_values' => $or_values, 'clause' => $this->where]);
-
-    return $this;
+    return [$operator, $value];
   }
 
 
@@ -1274,10 +1188,11 @@ class MysqlQuery extends Query {
 
     $composition = [
       'SELECT', $columns, 'FROM', $this->table(),
-      $this->getWhere(), $this->getOrder(), $this->getLimit()
+      $this->getWhereClause(), $this->getOrder(), $this->getLimit()
     ];
 
     $this->sql = implode(' ', $composition);
+    pr(['tmp' => __FUNCTION__, '$this->wheres1' => $this->wheres, '$this->sql' => $this->sql]);
 
     return $this;
   }
@@ -1391,7 +1306,7 @@ class MysqlQuery extends Query {
 
     $columns_values = implode(',', $columns_values);
 
-    if( ! $where = $this->getWhere()){
+    if( ! $where = $this->getWhereClause()){
       static::throwError(
         "Please, define a 'WHERE...' clause for this operation.", __FUNCTION__
       );
@@ -1417,7 +1332,7 @@ class MysqlQuery extends Query {
       return false;
     }
 
-    if( ! $where = $this->getWhere()){
+    if( ! $where = $this->getWhereClause()){
       static::throwError(
         "Please, define a 'WHERE...' clause for this operation.", __FUNCTION__
       );

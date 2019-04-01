@@ -64,17 +64,19 @@ abstract class Model
 
   protected $result = false;
 
-  protected $where, $orWhere, $order, $limit, $tempSql;
+  protected $wheres = [], $orWheres = [], $order, $limit, $tempSql;
 
   protected $rows = [], $single;
 
 
-  public function __construct(array $attributes = []){
+  public function __construct(array $attributes = [])
+  {
     $this->fill($attributes);
   }
 
 
-  protected static function instance($attributes = []){
+  protected static function instance($attributes = [])
+  {
     return new static($attributes);
   }
 
@@ -85,7 +87,8 @@ abstract class Model
    * @param Modelable  $object
    * @return \Orcses\PhpLib\Models\PseudoModel
    */
-  public static function pseudo(Modelable $object){
+  public static function pseudo(Modelable $object)
+  {
     pr(['ModelAccess' => $object->getTable().': '.get_class($object)]);
 //    $model = static::instance();
 
@@ -101,7 +104,8 @@ abstract class Model
    * @param string  $id   The id of the object
    * @return Model
    */
-  public static function newFromObj(Model $obj, string $id){
+  public static function newFromObj(Model $obj, string $id)
+  {
     return $obj->where([ $obj->getKeyName() => $id ])->first();
   }
 
@@ -111,7 +115,8 @@ abstract class Model
    * @param array $attributes
    * @return static
    */
-  protected function newFromExisting(array $attributes){
+  protected function newFromExisting(array $attributes)
+  {
     pr(['newFromExisting pseudo_object $this' => $ao = $this->pseudo_object, 'table' => $ao ? $ao->getTable() : null]);
     $model = clone $this;
 
@@ -132,12 +137,14 @@ abstract class Model
 
 
   // ToDo: refactor this
-  protected function setConnection(){
+  protected function setConnection()
+  {
     $this->connection = new MysqlConnection();
   }
 
 
-  protected function getConnection(){
+  protected function getConnection()
+  {
     if( ! $this->connection){
       $this->setConnection();
     }
@@ -146,7 +153,8 @@ abstract class Model
   }
 
 
-  protected function query(){
+  protected function query()
+  {
     if( ! $this->query){
       $this->query = new MysqlQuery( $this->getConnection() );
     }
@@ -155,7 +163,8 @@ abstract class Model
   }
 
 
-  public function getModelName(){
+  public function getModelName()
+  {
     if( ! $this->model_name){
       $model_path = Arr::stripEmpty( explode('\\', get_class($this) ));
 
@@ -191,17 +200,20 @@ abstract class Model
   }
 
 
-  public function hasAttribute($key){
+  public function hasAttribute($key)
+  {
     return array_key_exists($key, $this->attributes);
   }
 
 
-  public function getAttributes(){
+  public function getAttributes()
+  {
     return $this->attributes;
   }
 
 
-  public function getAttribute($key){
+  public function getAttribute($key)
+  {
     if( ! $this->hasAttribute($key)){
       dd('Not hasAttribute', $this->attributes, get_class($this));
       throw new ModelAttributeNotFoundException($this->getModelName(), $key);
@@ -215,26 +227,30 @@ abstract class Model
   }
 
 
-  public function setAttribute(string $key, $value){
+  public function setAttribute(string $key, $value)
+  {
     return $this->fill([$key => $value]);
   }
 
 
-  public function imposeAttribute(string $key, $value){
+  public function imposeAttribute(string $key, $value)
+  {
     $this->attributes[ $key ] = $value;
 
     return $this;
   }
 
 
-  public function removeAttribute(string $key){
+  public function removeAttribute(string $key)
+  {
     unset( $this->attributes[ $key ] );
 
     return $this;
   }
 
 
-  public function removeAttributes(array $columns = []){
+  public function removeAttributes(array $columns = [])
+  {
     foreach ($columns as $key){
       $this->removeAttribute( $key );
     }
@@ -243,7 +259,8 @@ abstract class Model
   }
 
 
-  public function setAppendedAttributes(){
+  public function setAppendedAttributes()
+  {
     foreach ($this->appends as $append){
       $append_name = Str::titleCase( $append );
 
@@ -256,7 +273,8 @@ abstract class Model
   }
 
 
-  public function isFillable(string $key){
+  public function isFillable(string $key)
+  {
     pr(['isFillable $key' => $key, 'class' => get_class($this), 'object' => $this->pseudo_object, 'lazy' => $this->lazy_load]);
 
     // Every pseudo-model formed via the Builder class will have all its properties fillable
@@ -269,27 +287,32 @@ abstract class Model
   }
 
 
-  public function isNotFillable(string $key){
+  public function isNotFillable(string $key)
+  {
     return ! $this->isFillable($key);
   }
 
 
-  public function isGuarded(string $key){
+  public function isGuarded(string $key)
+  {
     return in_array($key, $this->guarded);
   }
 
 
-  public function isUnGuarded(string $key){
+  public function isUnGuarded(string $key)
+  {
     return ! $this->isGuarded($key);
   }
 
 
-  protected function stripGuarded(){
+  protected function stripGuarded()
+  {
     return $this->except( $this->guarded );
   }
 
 
-  protected function stripHidden(){
+  protected function stripHidden()
+  {
     return $this->removeAttributes( $this->hidden );
   }
 
@@ -319,7 +342,8 @@ abstract class Model
   }
 
 
-  public function forceFill(array $attributes){
+  public function forceFill(array $attributes)
+  {
     $this->force_fill = true;
 
     $this->fill($attributes);
@@ -336,7 +360,8 @@ abstract class Model
   }
 
 
-  private function getTableNameFromModel(){
+  private function getTableNameFromModel()
+  {
     $model_name = Str::snakeCase( $this->getModelName() );
 
     return $this->query()->tableExists( $model_name ) ? $model_name : '';
@@ -362,7 +387,8 @@ abstract class Model
   }
 
 
-  public function getTable(){
+  public function getTable()
+  {
     pr(['getTable' => get_class($this), '>pseudo_object' => $this->pseudo_object]);
     if( ! $this->table){
       $this->setTable();
@@ -376,7 +402,8 @@ abstract class Model
   }
 
 
-  private function getTableColumns(){
+  private function getTableColumns()
+  {
     pr(['getTableColumns table' => $this->table]);
     pr(['getTableColumns table_columns' => $this->table_columns]);
     pr(['getTableColumns lazy_load' => $this->lazy_load]);
@@ -410,7 +437,8 @@ abstract class Model
   }
 
 
-  private function getValidAttributes(array $attributes){
+  private function getValidAttributes(array $attributes)
+  {
     pr(['getValidAttributes class' => get_class($this)]);
     pr(['getValidAttributes $values' => $attributes]);
     pr(['getValidAttributes table' => $this->table]);
@@ -419,27 +447,32 @@ abstract class Model
   }
 
 
-  private function setAutoIncrementColumn(string $column){
+  private function setAutoIncrementColumn(string $column)
+  {
     $this->auto_increment = $column;
   }
 
 
-  public function getAutoIncrementColumn(){
+  public function getAutoIncrementColumn()
+  {
     return $this->auto_increment;
   }
 
 
-  private function setKeyName(string $column){
+  private function setKeyName(string $column)
+  {
     $this->key = $column;
   }
 
 
-  public function getKeyName(){
+  public function getKeyName()
+  {
     return $this->key;
   }
 
 
-  public function getKey(){
+  public function getKey()
+  {
     try {
       return $this->getAttribute( $this->key );
     }
@@ -449,14 +482,16 @@ abstract class Model
   }
 
 
-  private function getStringKeyNameFormat(){
+  private function getStringKeyNameFormat()
+  {
     $model_name = Str::snakeCase( $this->getModelName() );
 
     return $model_name . '_id';
   }
 
 
-  private function setStringKeyName(string $column){
+  private function setStringKeyName(string $column)
+  {
     // If the developer has specified a string_key_name via the getStringKeyName() in the model, use it instead
     if($string_key_name = $this->getStringKeyName()){
       $column = $string_key_name;
@@ -466,38 +501,76 @@ abstract class Model
   }
 
 
-  public function getStringKeyName(){
+  public function getStringKeyName()
+  {
     return $this->string_key;
   }
 
 
-  public function getStringKey(){
+  public function getStringKey()
+  {
     return $this->getAttribute( $this->string_key );
   }
 
 
-  public function currentSql() {
+  public function currentSql()
+  {
     return $this->query()->currentVars();
   }
 
 
-  public function previousSql() {
+  public function previousSql()
+  {
     return $this->query()->prevSql();
   }
 
 
-  public function orWhere(array $columns_values){
-    $this->query()->orWhere( $this->orWhere = $columns_values );
+  public function orWhere($column, $operator = null, $value = null)
+  {
+    $this->query()->orWhere( $column, $operator, $value );
 
     return $this;
   }
 
 
-  public function where(array $columns_values){
+  public function andWhere($column, $operator = null, $value = null)
+  {
+    $this->query()->andWhere( $column, $operator, $value );
+
+    return $this;
+  }
+
+
+  public function where($column, $operator = null, $value = null)
+  {
+    $this->query()->where( $column, $operator, $value );
+
+    return $this;
+  }
+
+
+  protected function whereVars($column, $operator = null, $value = null){
+    if(is_array($column)) {
+//      $columns_values[] = [key($column), current($column)];
+      $columns_values = $column;
+    }
+    elseif(func_num_args() === 2){
+      $value = $operator;
+
+      $columns_values = [$column => $value];
+    }
+    else {
+      $columns_values = [ $column => [$operator, $value] ];
+    }
+
+    return $columns_values;
+  }
+
+  /*public function where(array $columns_values){
     $this->query()->where( $this->where = $columns_values );
 
     return $this;
-  }
+  }*/
 
 
   public function orderBy( string $column, string $direction = 'ASC'){
@@ -668,8 +741,8 @@ abstract class Model
 
   private function performUpdate()
   {
-    pr( ['where' => $this->where, 'attributes' => $this->attributes, 'original' => $this->original]);
-    if( ! $this->where){
+    pr( ['where' => $this->wheres, 'attributes' => $this->attributes, 'original' => $this->original]);
+    if( ! $this->wheres){
       if($key_name = $this->getKeyName()){
         $this->where([ $key_name => $this->getKey() ]);
       }
@@ -681,7 +754,7 @@ abstract class Model
 //    pr(['getKeyName' => $this->getKeyName(), 'getStringKeyName' => $this->getStringKeyName()]);
     pr( ['currentVars' => $this->query()->currentVars() ]);
 
-    if($this->where){
+    if($this->wheres){
       $this->updateTimestamps();
 
       // ToDo: remove dryRun

@@ -160,13 +160,17 @@ final class Auth implements Modelable
     $password = $vars['password'];
 
     $where = [
-      /*[
-        "email" => $user,
-        "username" => $user,
-      ],*/
-//      'password' => $password,
+      [
+        [
+          "email" => $user,
+        ],
+        [
+          "username" => $user,
+        ],
+      ],
+      'password' => $password,
       'status' => ['BETWEEN', 1, 2],
-      'timeout|b' => 'timeout <= floor((unix_timestamp() - unix_timestamp(last_login)) / 60)'
+//      'timeout|b' => 'timeout <= floor((unix_timestamp() - unix_timestamp(last_login)) / 60)'
     ];
 
     if($result = $this->model->where($where)->first()){

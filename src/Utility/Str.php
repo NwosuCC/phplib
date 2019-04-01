@@ -18,17 +18,22 @@ class Str
   }
 
 
+  public static function trimNonSpaceChar(string $value, string $char){
+    return (stripos($char, ' ') === false) ? trim($value) : $value;
+  }
+
+
   /**
    * Checks for a trailing character and returns true if found, false if not found
    * @param string $value
    * @param string $char  The character to remove
    * @return string
    */
-  public static function hasTrailingChar($value, $char) {
-    $has_char = stripos($value, $char) !== false;
-    $ends_with_char = strlen( stristr($value, $char)) === strlen($char);
+  public static function hasTrailingChar($value, $char)
+  {
+    $value = static::trimNonSpaceChar($value, $char);
 
-    return ($has_char && $ends_with_char);
+    return (substr($value, - strlen($char)) === $char) ? $value : false;
   }
 
 
@@ -38,9 +43,28 @@ class Str
    * @param string $char  The character to remove
    * @return string
    */
-  public static function stripTrailingChar($value, $char) {
-    if(static::hasTrailingChar($value, $char)){
-      $value = stristr($value, $char, true);
+  public static function stripTrailingChar($value, $char)
+  {
+    if($trimmed_value = static::hasTrailingChar($value, $char)){
+      $value = substr($trimmed_value, 0, - strlen($char));
+    }
+
+    return $value;
+  }
+
+
+  public static function hasLeadingChar($value, $char)
+  {
+    $value = static::trimNonSpaceChar($value, $char);
+
+    return stripos($value, $char) === 0 ? $value : false;
+  }
+
+
+  public static function stripLeadingChar(string $value, string $char)
+  {
+    if($trimmed_value = static::hasLeadingChar($value, $char)){
+      $value = substr($trimmed_value, strlen($char));
     }
 
     return $value;
@@ -90,31 +114,31 @@ class Str
   }
 
 
-  public static function trimChars(string $value, string $char, int $chunk = 0){
+  public static function trimToNthChars(string $value, string $char, int $n = 0){
     // ToDo: include escape characters
 
-    $n = $chunk + 1;
+    $a = $n + 1;
 
-    $regex = '/['.$char.']{'.$n.',}/';
+    $regex = '/['.$char.']{'.$a.',}/';
 
-    $replace = str_repeat($char, $chunk);
+    $replace = str_repeat($char, $n);
 
     return preg_replace($regex, $replace, $value);
   }
 
 
   public static function trimMultipleChars(string $value, string $char){
-    return static::trimChars($value, $char, 1);
+    return static::trimToNthChars($value, $char, 1);
   }
 
 
-  public static function trimSpaces(string $value, int $chunk = 0){
-    return static::trimChars($value, ' ', $chunk);
+  public static function trimToNthSpaces(string $value, int $n = 0){
+    return static::trimToNthChars($value, ' ', $n);
   }
 
 
   public static function trimMultipleSpaces(string $value){
-    return static::trimSpaces($value, 1);
+    return static::trimToNthSpaces($value, 1);
   }
 
 
