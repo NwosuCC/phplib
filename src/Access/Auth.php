@@ -123,7 +123,8 @@ final class Auth implements Modelable
     static::auth()->authenticate($vars);
 
     if( self::user()){
-      self::updateStats();
+      $stats = self::updateStats();
+      pr(['lgc' => __FUNCTION__, 'updateStats $stats' => $stats]);
 
       if( ! $user_info = self::$token_fields){
         $user_info = [
@@ -160,21 +161,22 @@ final class Auth implements Modelable
     $password = $vars['password'];
 
     $where = [
-      [
-        [
+      'user|a' => [
+//        'em|a'=> [
           "email" => $user,
-        ],
-        [
+//        ],
+        'un|o'=> [
           "username" => $user,
         ],
       ],
       'password' => $password,
       'status' => ['BETWEEN', 1, 2],
-//      'timeout|b' => 'timeout <= floor((unix_timestamp() - unix_timestamp(last_login)) / 60)'
+      'timeout|b' => 'timeout <= floor((unix_timestamp() - unix_timestamp(last_login)) / 60)'
     ];
+    pr(['lgc' => __FUNCTION__, 'authenticate $where' => $where]);
 
     if($result = $this->model->where($where)->first()){
-      pr(['authenticate $result' => $result]);
+      pr(['lgc' => __FUNCTION__, 'authenticate $result' => $result]);
       $this->user = $result;
       $this->id = $this->user->getKey();
 

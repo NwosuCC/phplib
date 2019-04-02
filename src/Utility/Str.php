@@ -101,7 +101,8 @@ class Str
    * @return string
    */
   public static function hashedPassword($string){
-    $salt_1  = static::hash( $string, 1, 22);
+    // ToDo: refactor - currently produces inconsistent passwords
+    /*$salt_1  = static::hash( $string, 1, 22);
     $crypt_1 =  crypt($string, '$2a$09$'.$salt_1.'$');
 
     $salt_2  = static::hash( $string, 18, 22);
@@ -110,7 +111,9 @@ class Str
     $double_crypt = substr($crypt_1, -15) . substr($crypt_2, -17);
     $crypt_BlowFish_salt = substr($double_crypt, 7, 22);
 
-    return crypt($string, '$2a$09$'.$crypt_BlowFish_salt.'$');
+    return crypt($string, '$2a$09$'.$crypt_BlowFish_salt.'$');*/
+
+    return md5( sha1($string));
   }
 
 

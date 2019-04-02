@@ -158,7 +158,7 @@ class MysqlQuery extends Query {
       return false;
     }
 
-    $types = ['c', 'q', 'v', 'b'];
+    $types = ['a', 'c', 'o', 'q', 'v', 'b'];
 
     if( ! in_array($type, $types)){
       static::throwError(
@@ -196,6 +196,20 @@ class MysqlQuery extends Query {
   private static function isRawValue($value)
   {
     return static::isRawData('v', $value);
+  }
+
+
+  // $column is a is Logic Operator - 'isBlank' implicitly
+  private static function isLogicOperator($value)
+  {
+    if(static::isRawData('a', $value)) {
+      $logic_op = 'AND';
+    }
+    elseif(static::isRawData('o', $value)){
+      $logic_op = 'OR';
+    }
+
+    return !empty($logic_op) ? $logic_op : false;
   }
 
 
@@ -912,39 +926,72 @@ class MysqlQuery extends Query {
 
   public function orWhere($column, $operator = null, $value = null)
   {
-    if($where = $this->getTmpWhere()){
-      $this->wheres[] = $where;
+    // getTmpWhere() can only be non-empty here iff where() has been previously called
+    if($tmp_where = $this->getTmpWhere()){
+      $this->wheres[] = $tmp_where;
     }
 
     $columns_values = $this->getWhereColumnValues($column, $operator, $value);
+
+    $count = count($columns_values);
 
     $where_and = $where_or = [];
 
     foreach($columns_values as $column => $value){
 
-      if(is_numeric($column) && is_array($value)){
+//      if(is_numeric($column) && is_array($value)){
+      if($join = static::isLogicOperator($column)){
         $where = $this->orWhere($value)->getOrWhere();
 
-        $where_or[] = Str::stripLeadingChar( $where, 'OR' );
+        pr(['lgc' => __FUNCTION__, 'OR recurse 000 $where' => $where, '$count' => $count, '$where_or' => $where_or]);
+//        $where_or[] = Str::stripLeadingChar( $where, 'OR' );
+        $where_or[] = trim( $join .' '. $where);
+        pr(['lgc' => __FUNCTION__, 'OR recurse 111 $where' => $where, '$count' => $count, '$where_or' => $where_or]);
       }
       else {
         $where_and[] = trim( $this->where([$column => $value])->getTmpWhere());
       }
     }
 
-    $where_or = trim( implode(' OR ', $where_or));
+//    $where_or = trim( implode(' OR ', $where_or));
+//    $where_or = implode(' ', $where_or);
 
-    pr(['tmp' => __FUNCTION__, 'OR initial $where_and' => $where_and, '$where_or' => $where_or]);
+    pr(['lgc' => __FUNCTION__, 'OR initial $where_and' => $where_and, '$count' => $count, '$where_or' => $where_or, '$where' => $this->where, '$wheres' => $this->wheres]);
 
     if($where_and){
-      $where_or = $where_or ? ' OR ('. $where_or .')' : '';
+//      $where_or = $where_or ? ' OR ('. $where_or .')' : '';
 
-      $where_and = trim( implode(' AND ', $where_and));
+      pr(['lgc' => __FUNCTION__, 'OR inside 000 $where_and' => $where_and, '$count' => $count, '$where_or' => $where_or, '$where' => $this->where, '$wheres' => $this->wheres]);
 
-      $where_or = $where_and ? 'OR ('. $where_and . $where_or .')' : '';
+      if($where_and = trim( implode(' AND ', $where_and))){
+        array_unshift($where_or, $where_and);
+      }
+
+//      $where_or = $where_and ? 'OR ('. $where_and . $where_or .')' : '';
+
+//      $where_or = $where_and ? $where_and .' '. $where_or : '';
     }
 
-    pr(['tmp' => __FUNCTION__, 'OR final $where_and' => $where_and, '$where_or' => $where_or]);
+    if($where_or){
+      if( ! $where_and && $count > 1){
+        $where_or[0] = Str::stripLeadingChar( $where_or[0], 'OR');
+        $where_or[0] = Str::stripLeadingChar( $where_or[0], 'AND');
+      }
+
+      $where_or = implode(' ', $where_or);
+
+      $or = $tmp_where ? 'OR ' : '';
+
+      if($count > 1){
+        $where_or = '('. $where_or .')';
+      }
+
+      $where_or = $or . $where_or;
+      pr(['lgc' => __FUNCTION__, 'OR inside 111 $where_and' => $where_and, '$count' => $count, '$where_or' => $where_or, '$where' => $this->where, '$wheres' => $this->wheres]);
+    }
+
+    //    $where_or = implode(' ', $where_or);
+    pr(['lgc' => __FUNCTION__, 'OR final $where_and' => $where_and, '$where_or' => $where_or]);
 
     $this->orWhere = $where_or;
 
@@ -982,9 +1029,17 @@ class MysqlQuery extends Query {
 
     foreach($columns_values as $column => $value){
 
-      if($is_OR_value = is_numeric($column) and is_array($value)){
+//      if($is_OR_value = is_numeric($column) and is_array($value)){
+      if($join = static::isLogicOperator($column)){
+//        $where_or[$join][] = trim( $this->orWhere([$column => $value])->getOrWhere() );
 
-        $where_or[] = trim( $this->orWhere([$column => $value])->getOrWhere() );
+//        $where_or[] = trim( $this->orWhere([$column => $value])->getOrWhere() );
+
+        $where = $this->orWhere([$column => $value])->getOrWhere();
+
+//        $where_or[] = trim( Str::stripLeadingChar( $where, 'OR'));
+        $where_or[] = trim($where);
+        pr(['lgc' => __FUNCTION__, 'aftr recurse $where' => $where, '$where_or' => $where_or]);
       }
       else {
         $column_is_blank = static::isBlank($column);
@@ -1002,18 +1057,33 @@ class MysqlQuery extends Query {
       }
     }
 
-    pr(['tmp' => __FUNCTION__, 'where_and 00' => $where_and, '$where_or' => $where_or, '$this->where' => $this->where]);
+    pr(['lgc' => __FUNCTION__, 'where_and 00' => $where_and, '$where_or' => $where_or, '$this->where' => $this->where]);
     if($where_or){
-      $where_or = '(' . implode(' OR ', $where_or) . ')';
+      pr(['lgc' => __FUNCTION__, 'b4 strip OR $where_or' => $where_or]);
+      if( ! $where_and){
+        $where_or[0] = Str::stripLeadingChar( $where_or[0], 'OR');
+        $where_or[0] = Str::stripLeadingChar( $where_or[0], 'AND');
+      }
+//
+//      foreach($where_or as $join => $clauses){
+//        $where_or[$join] = implode(" {$join} ", $where_or[$join]);
+//      }
+      pr(['lgc' => __FUNCTION__, 'b4 implode OR $where_or' => $where_or]);
 
-      $where_and[] = ($where_and ?  'OR ' : '') . $where_or;
+//      $where_or = '(' . implode(' ', $where_or) . ')';
+      $where_or = implode(' ', $where_or);
+      pr(['lgc' => __FUNCTION__, 'aftr implode OR $where_or' => $where_or, '$where_and' => $where_and]);
+
+//      $where_and[] = ($where_and ?  'OR ' : '') . $where_or;
+      $where_and[] = $where_or;
+      pr(['lgc' => __FUNCTION__, 'aftr join where_and 00' => $where_and, '$where_or' => $where_or]);
     }
 
-    pr(['tmp' => __FUNCTION__, 'where_and 11' => $where_and, '$this->where' => $this->where]);
+    pr(['lgc' => __FUNCTION__, 'where_and 11' => $where_and, '$this->where' => $this->where]);
 
     $this->where = ($where_and) ? implode(' ', $where_and) : '';
 
-    pr(['tmp' => __FUNCTION__, 'where_and 22' => $where_and, '$this->where' => $this->where]);
+    pr(['lgc' => __FUNCTION__, 'where_and 22' => $where_and, '$this->where' => $this->where]);
 
     return $this;
   }
@@ -1192,7 +1262,7 @@ class MysqlQuery extends Query {
     ];
 
     $this->sql = implode(' ', $composition);
-    pr(['tmp' => __FUNCTION__, '$this->wheres1' => $this->wheres, '$this->sql' => $this->sql]);
+    pr(['lgc' => __FUNCTION__, '$this->wheres1' => $this->wheres, '$this->sql' => $this->sql]);
 
     return $this;
   }
