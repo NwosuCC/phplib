@@ -11,11 +11,13 @@ class Logger {
 
   private static $files = [
     'error' => 'error-log.txt',
+    'sql' => 'sql-log.txt',
   ];
 
-  public static function log($type, $details){
+  public static function log($type, $details)
+  {
     if(!static::$log_dir){
-      static::$log_dir = config('log.dir');
+      static::$log_dir = base_dir() . config('files.log.dir');
     }
 
     if(empty(static::$files[$type]) or empty($details)){
@@ -40,28 +42,34 @@ class Logger {
   }
 
 
-  protected static function composeReport($type, $details){
+  protected static function composeReport($type, $details)
+  {
     $report = null;
 
+    list($code, $message) = is_array($details) ? $details : ['--', $details];
+
+    $message = trim($message);
+
+    $remote_domain = $_SERVER['REMOTE_ADDR'] . ':' . $_SERVER['REMOTE_PORT'];
+
+    $request_time = $_SERVER['REQUEST_TIME'];
+
+
     if($type == 'error'){
-      list($code, $message) = is_array($details) ? $details : ['--', $details];
-
-      $message = trim($message);
-
-      $remote_domain = $_SERVER['REMOTE_ADDR'] . ':' . $_SERVER['REMOTE_PORT'];
-
-      $request_time = $_SERVER['REQUEST_TIME'];
-
       $request_info = " from {$remote_domain} at " . date('Y-m-d H:i:s', $request_time);
 
-      $report = date('Y-m-d H:i:s', time()) . " Error [{$code}]: {$message} == " . $request_info . PHP_EOL;
+      $report = " Error [{$code}]: {$message} == " . $request_info . PHP_EOL;
+    }
+    elseif($type === 'sql'){
+      $report = " QUERY [affected_rows: {$code}]: {$message}" . PHP_EOL;
     }
 
-    return $report;
+    return date('Y-m-d H:i:s', time()) . $report;
   }
 
 
-  protected static function getLogFilePath($type){
+  protected static function getLogFilePath($type)
+  {
     return static::$log_dir . DIRECTORY_SEPARATOR . static::$files[$type];
   }
 

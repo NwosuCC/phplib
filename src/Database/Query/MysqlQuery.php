@@ -4,6 +4,7 @@ namespace Orcses\PhpLib\Database\Query;
 
 
 use mysqli as MySQLi;
+use Orcses\PhpLib\Logger;
 use Orcses\PhpLib\Utility\Str;
 use Orcses\PhpLib\Utility\Arr;
 use Orcses\PhpLib\Interfaces\Connectible;
@@ -661,7 +662,11 @@ class MysqlQuery extends Query {
       [$this->connection, $method], $sql = $this->sql()
     );
 
-    pr(['MysqlQuery::run()' => trim($sql), 'affected_rows' => $this->connection->affected_rows]);
+    if(app()->config('database.log_queries')){
+      Logger::log('sql', [$this->connection->affected_rows, $sql]);
+    }
+
+    pr(['lgc' => __FUNCTION__, '$sql' => trim($sql), 'affected_rows' => $this->connection->affected_rows, 'num_rows' => $this->result->num_rows ?? '']);
 
     if ( ! $this->result){
       static::throwError(
@@ -1387,6 +1392,7 @@ class MysqlQuery extends Query {
     ];
 
     $this->sql = implode(' ', $composition);
+    pr(['lgc' => __FUNCTION__, '$this->sql' => $this->sql]);
 
     if($this->run()->result){
       $result = $this->lastInsertId();

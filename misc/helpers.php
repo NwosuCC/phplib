@@ -41,6 +41,18 @@ if (! function_exists('arr_get')) {
   }
 }
 
+if (! function_exists('auth')) {
+  /**
+   * Return the Auth instance
+   *
+   * @return \Orcses\PhpLib\Access\Auth
+   */
+  function auth()
+  {
+    return \Orcses\PhpLib\Access\Auth::auth();
+  }
+}
+
 if (! function_exists('base_dir')) {
   /**
    * Return the Application base directory
@@ -101,7 +113,7 @@ if (! function_exists('real_dir')) {
   {
     return str_replace('//', '/', $path);
 
-    return str_replace('/', DIRECTORY_SEPARATOR, $path);
+//    return str_replace('/', DIRECTORY_SEPARATOR, $path);
   }
 }
 
@@ -158,7 +170,7 @@ if (! function_exists('env')) {
   }
 }
 
-if (! function_exists('log_info')) {
+if (! function_exists('log_error')) {
   /**
    * Logs info
    *
@@ -167,7 +179,7 @@ if (! function_exists('log_info')) {
    * @param  bool  $from_report   If true, generates [code, message] from global $_REPORTS
    * @return mixed
    */
-  function log_info($message, $callback = [], $from_report = false)
+  function log_error($message, $callback = [], $from_report = false)
   {
     if(is_array($message)){
       $message = ($from_report) ? (Result::prepare($message)[0] ?? '') : safe_call($message);

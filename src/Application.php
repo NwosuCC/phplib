@@ -2,10 +2,12 @@
 
 namespace Orcses\PhpLib;
 
-use Orcses\PhpLib\Access\Auth;
-use Orcses\PhpLib\Models\Model;
+use Orcses\PhpLib\Middleware\Middleware;
 use RuntimeException;
 use Orcses\PhpLib\Utility\Arr;
+use Orcses\PhpLib\Access\Auth;
+use Orcses\PhpLib\Models\Model;
+use Orcses\PhpLib\Routing\Router;
 use Orcses\PhpLib\Exceptions\InvalidArgumentException;
 
 
@@ -16,7 +18,7 @@ final class Application extends Foundation
   protected $namespace;
 
   /** @var \Orcses\PhpLib\Routing\Router */
-  protected $router;
+//  protected $router;
 
   /** @var \Orcses\PhpLib\Routing\Controller */
   protected $controller;
@@ -53,7 +55,7 @@ final class Application extends Foundation
       $this->use_log_info_handler();
     }
 
-    $this->router = $this->make('Router');
+//    $this->router = $this->make('Router');
 //    $this->router = $this->make(\Orcses\PhpLib\Routing\Router::class);
 
     $this->controller = $this->make('Controller');
@@ -116,19 +118,33 @@ final class Application extends Foundation
    */
   public function handle(Request $request)
   {
-    $this->router->loadRoutes();
+    Router::loadRoutes();
 
-    [$method, $uri, $route_space] = [$request->method(), $request->uri(), $request->routeSpace()];
+//    [$method, $uri, $route_space] = [$request->method(), $request->uri(), $request->routeSpace()];
 
     // Get Matching Route
-    [$controller, $arguments] = $this->router->find( $method, $uri, $route_space );
+    $controller = $arguments = $attributes = $result = null;
+
+    $route = Router::find( ...$request->currentRouteParams() );
+
+    if($route){
+      [$controller, $arguments, $attributes] = $route->props(['target', 'parameters', 'attributes']);
+    }
+    pr(['lgc' => __FUNCTION__, '$controller' => $controller, '$arguments' => $arguments, '$attributes' => $attributes]);
 
     // Abort request if controller is invalid
     if( ! $controller){
       pr('checks 111');
       $request::abort();
     }
-    elseif($controller instanceof \Closure){
+
+    // Run specified Middleware
+    if( isset($attributes['middleware'])){
+
+      Middleware::run($request, (array) $attributes['middleware'] );
+    }
+
+    if($controller instanceof \Closure){
       pr('checks 222');
 
       $result = $controller->call($this, $arguments);
@@ -160,10 +176,9 @@ final class Application extends Foundation
           }
 
           if(method_exists($dep, 'rules')){
-            $request->validatesWith( $dep->rules() );
+            $request->validateWith( $dep->rules() );
 
-            if($errors = $request->errors()){
-              $output = ['validation', 1, $errors];
+            if($output = $request->errors()){
               break;
             }
           }
@@ -233,7 +248,7 @@ final class Application extends Foundation
 
     // Call Controller method
 
-    if(!$result) dd('No controller', $method, $uri, $route_space);
+//    if(!$result) dd('No controller', $method, $uri, $route_space);
 
 //      dd('$result', $result);
     return Response::package( $result );

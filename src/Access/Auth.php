@@ -36,7 +36,8 @@ final class Auth implements Modelable
   protected $id;
 
 
-  protected function __construct(){
+  protected function __construct()
+  {
     $this->model = Model::pseudo($this);
 
     static::$auth = $this;
@@ -71,7 +72,8 @@ final class Auth implements Modelable
 
 
   /** @return $this */
-  private static final function auth(){
+  public static final function auth()
+  {
     if( ! static::$auth){
       new static();
     }
@@ -80,8 +82,10 @@ final class Auth implements Modelable
   }
 
 
-  public static function check(bool $log_out = false){
+  public static function check(bool $log_out = false)
+  {
     if( !($auth = static::auth()->user) && $log_out){
+
       Request::abort( Auth::error(Auth::PLS_CONTINUE), true);
     }
 
@@ -89,17 +93,20 @@ final class Auth implements Modelable
   }
 
 
-  public static function user(){
+  public static function user()
+  {
     return static::auth()->user;
   }
 
 
-  public static function id(){
+  public static function id()
+  {
     return static::auth()->id;
   }
 
 
-  protected static function set(string $key, $value){
+  protected static function set(string $key, $value)
+  {
     if(self::id()){
       self::auth()->user->imposeAttribute($key, $value);
       pr(['auth user' => self::auth()->user]);
@@ -107,24 +114,26 @@ final class Auth implements Modelable
   }
 
 
-  public static function setTokenFields(array $token_fields){
+  public static function setTokenFields(array $token_fields)
+  {
     self::$token_fields = $token_fields;
   }
 
 
-  public static function throttleDelay(){
+  public static function throttleDelay()
+  {
     return static::$throttle_delay;
   }
 
 
-  public static function attempt($vars){
-    $vars['password'] = Str::hashedPassword($vars['password']);
+  public static function attempt($vars)
+  {
+    Router::setLoginRouteName( Request::currentRouteParams() );
 
     static::auth()->authenticate($vars);
 
     if( self::user()){
-      $stats = self::updateStats();
-      pr(['lgc' => __FUNCTION__, 'updateStats $stats' => $stats]);
+      self::updateStats();
 
       if( ! $user_info = self::$token_fields){
         $user_info = [
@@ -144,14 +153,17 @@ final class Auth implements Modelable
       $error = Auth::error(self::INV_CREDENTIALS);
 
       // Prevent rapid multiple Login attempts
-      Request::throttle( Router::LOGIN, $error);
+      Request::throttle( Router::getLoginRouteName(), $error);
     }
 
     return !empty(self::user());
   }
 
 
-  protected function authenticate($vars = []){
+  // Authorization
+
+  protected function authenticate($vars = [])
+  {
     if(self::user()) {
       return true;
     }
@@ -169,21 +181,26 @@ final class Auth implements Modelable
           "username" => $user,
         ],
       ],
-      'password' => $password,
+//      'password' => $password,
+//      'password|b' => '! isnull(`password`)',
       'status' => ['BETWEEN', 1, 2],
       'timeout|b' => 'timeout <= floor((unix_timestamp() - unix_timestamp(last_login)) / 60)'
     ];
     pr(['lgc' => __FUNCTION__, 'authenticate $where' => $where]);
 
     if($result = $this->model->where($where)->first()){
-      pr(['lgc' => __FUNCTION__, 'authenticate $result' => $result]);
-      $this->user = $result;
-      $this->id = $this->user->getKey();
+      $hashed_password = $result->getAttribute('password');
 
-      // Set authenticated user once and for all
-      static::$auth = $this;
+      if(password_verify($password, $hashed_password)){
+        pr(['lgc' => __FUNCTION__, 'authenticate $result' => $result]);
+        $this->user = $result;
+        $this->id = $this->user->getKey();
 
-      static::auth()->user->removeAttribute('password');
+        // Set authenticated user once and for all
+        static::$auth = $this;
+
+        static::auth()->user->removeAttribute('password');
+      }
     }
 
     return (!empty(Auth::user()));

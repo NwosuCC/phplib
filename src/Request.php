@@ -16,14 +16,18 @@ class Request
 
   protected static $instance;
 
-  private $route_space, $method, $uri, $input, $files;
+  private $headers, $route_space, $method, $uri, $input, $files;
 
   protected $validator, $errors, $error_code, $captured;
 
-  /**
-   * Specifies the routes to throttle
-   */
+  /** Specifies the routes to throttle */
   protected static $throttle_routes = [];
+
+  /**
+   * @var array $route_params
+   * The parameters of the current route being processed
+   */
+  protected static $route_params = [];
 
 
   public function __construct(){
@@ -66,6 +70,20 @@ class Request
   }
 
 
+  public function getHeader(string $key)
+  {
+    return $this->headers[ $key ] ?? null;
+  }
+
+
+  public static function currentRouteParams(bool $assoc = false)
+  {
+    $params = static::$route_params;
+
+    return $assoc ? $params : array_values($params);
+  }
+
+
   public function routeSpace(){
     return $this->route_space;
   }
@@ -100,7 +118,38 @@ class Request
   }
 
 
+  /*protected final function getContents(){
+  $this->method = $_SERVER['REQUEST_METHOD'];
+
+  $this->uri = $_SERVER['REQUEST_URI'];
+
+  // ToDo: use the files content
+  if( !empty($_FILES)){
+    $this->files = $_FILES;
+  }
+
+  $input = json_decode( file_get_contents("php://input"),true);
+
+  dd($input, $_POST);
+
+  if( ! empty($_POST['op'])) {
+    // If request includes a standard 'x-www-urlencoded-form' $_POST (e.g AngularJS file upload)
+    $input = $_POST;
+  }
+
+  if(empty($input)) {
+    // If empty request (e.g dev-server ping), set default op = server.ping
+    // This is necessary to handle empty request normally and prevent CORS error in the response
+    $input = [
+      'op' => Application::get_op('server.ping')
+    ];
+  }
+
+  $this->input = $input;
+}*/
   protected final function getContents(){
+    $this->headers = getallheaders();
+
     $this->method = $_SERVER['REQUEST_METHOD'];
 
     $this->uri = $_SERVER['REQUEST_URI'];
@@ -118,41 +167,19 @@ class Request
     }
 
     $this->route_space = !empty($web_space) ? Router::WEB : Router::API;
+
+    static::$route_params = [
+      'method' => $this->method, 'uri' => $this->uri, 'route_space' => $this->route_space
+    ];
   }
-  /*protected final function getContents(){
-    $this->method = $_SERVER['REQUEST_METHOD'];
-
-    $this->uri = $_SERVER['REQUEST_URI'];
-
-    // ToDo: use the files content
-    if( !empty($_FILES)){
-      $this->files = $_FILES;
-    }
-
-    $input = json_decode( file_get_contents("php://input"),true);
-
-    dd($input, $_POST);
-
-    if( ! empty($_POST['op'])) {
-      // If request includes a standard 'x-www-urlencoded-form' $_POST (e.g AngularJS file upload)
-      $input = $_POST;
-    }
-
-    if(empty($input)) {
-      // If empty request (e.g dev-server ping), set default op = server.ping
-      // This is necessary to handle empty request normally and prevent CORS error in the response
-      $input = [
-        'op' => Application::get_op('server.ping')
-      ];
-    }
-
-    $this->input = $input;
-  }*/
 
 
-  public function validatesWith(array $rules)
+  public function validateWith(array $rules)
   {
-    $this->errors = $this->validator()->make( $rules )->validate( $this );
+    if($errors = $this->validator()->make( $rules )->validate( $this )){
+
+      $this->errors = ['validation', 1, $errors];
+    }
 
     $input = $this->input();
 
@@ -162,13 +189,17 @@ class Request
   }
 
 
-  public static function throttle(string $controller, $error = null)
+  public static function throttle(string $route_key, $error = null)
   {
-    if( ! in_array($controller, static::$throttle_routes)) {
-      static::$throttle_routes[] = $controller;
+    if( ! in_array($route_key, static::$throttle_routes)) {
+      static::$throttle_routes[] = $route_key;
     }
 
-    return static::retryOrFail($controller, $error ?: Auth::error(Auth::PLS_CONTINUE));
+    if( ! $error){
+      $error = Auth::error(Auth::PLS_CONTINUE);
+    }
+
+    return static::retryOrFail($route_key, $error);
   }
 
 

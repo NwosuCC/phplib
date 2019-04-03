@@ -11,14 +11,22 @@ class Str
    * @param string $delimiter The delimiter character to use for the split
    * @return array
    */
-  public static function splitByChar(string $value, string $delimiter){
+  public static function splitByChar(string $value, string $delimiter)
+  {
     $parts = array_map(function($str){ return trim($str); }, explode($delimiter, $value));
 
     return array_filter($parts, function($str){ return $str !== ''; });
   }
 
 
-  public static function trimNonSpaceChar(string $value, string $char){
+  /**
+   * Trims and returns the value iff the supplied $char does not contain white-space
+   * @param string $value
+   * @param string $char
+   * @return string
+   */
+  public static function trimNonSpaceChar(string $value, string $char)
+  {
     return (stripos($char, ' ') === false) ? trim($value) : $value;
   }
 
@@ -76,7 +84,8 @@ class Str
    * @param $string
    * @return string
    */
-  public static function clean($string){
+  public static function clean($string)
+  {
     return trim( htmlspecialchars( stripslashes($string)));
   }
 
@@ -86,10 +95,12 @@ class Str
    * @param string $string
    * @param int $start
    * @param int $length
+   * @param bool $random
    * @return string
    */
-  public static function hash($string = '', int $length = 0, int $start = 0){
-    $hash = sha1($string.microtime(true));
+  public static function hash($string = '', int $length = 0, int $start = 0, bool $random = true)
+  {
+    $hash = sha1( $string . ($random ? microtime(true) : '') );
 
     return $length ? substr($hash, $start, $length) : $hash;
   }
@@ -100,24 +111,14 @@ class Str
    * @param string $string
    * @return string
    */
-  public static function hashedPassword($string){
-    // ToDo: refactor - currently produces inconsistent passwords
-    /*$salt_1  = static::hash( $string, 1, 22);
-    $crypt_1 =  crypt($string, '$2a$09$'.$salt_1.'$');
-
-    $salt_2  = static::hash( $string, 18, 22);
-    $crypt_2 =  crypt($string, '$2a$09$'.$salt_2.'$');
-
-    $double_crypt = substr($crypt_1, -15) . substr($crypt_2, -17);
-    $crypt_BlowFish_salt = substr($double_crypt, 7, 22);
-
-    return crypt($string, '$2a$09$'.$crypt_BlowFish_salt.'$');*/
-
-    return md5( sha1($string));
+  public static function hashedPassword($string)
+  {
+    return password_hash($string, PASSWORD_DEFAULT);
   }
 
 
-  public static function trimToNthChars(string $value, string $char, int $n = 0){
+  public static function trimToNthChars(string $value, string $char, int $n = 0)
+  {
     // ToDo: include escape characters
 
     $a = $n + 1;
@@ -130,22 +131,26 @@ class Str
   }
 
 
-  public static function trimMultipleChars(string $value, string $char){
+  public static function trimMultipleChars(string $value, string $char)
+  {
     return static::trimToNthChars($value, $char, 1);
   }
 
 
-  public static function trimToNthSpaces(string $value, int $n = 0){
+  public static function trimToNthSpaces(string $value, int $n = 0)
+  {
     return static::trimToNthChars($value, ' ', $n);
   }
 
 
-  public static function trimMultipleSpaces(string $value){
+  public static function trimMultipleSpaces(string $value)
+  {
     return static::trimToNthSpaces($value, 1);
   }
 
 
-  public static function snakeCase(string $value){
+  public static function snakeCase(string $value)
+  {
     $split = str_split( static::trimMultipleSpaces($value));
 
     foreach($split as $i => $char){
@@ -158,12 +163,14 @@ class Str
   }
 
 
-  public static function titleCase(string $value){
+  public static function titleCase(string $value)
+  {
     return ucfirst( static::camelCase($value) );
   }
 
 
-  public static function camelCase(string $value){
+  public static function camelCase(string $value)
+  {
     $split = str_split( static::trimMultipleSpaces($value));
 
     $cap_next = false;
@@ -185,7 +192,8 @@ class Str
   }
 
 
-  public static function matchCase(string $case, string $value){
+  public static function matchCase(string $case, string $value)
+  {
     $case = trim($case);
 
     $supported_cases = [

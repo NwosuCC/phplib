@@ -116,6 +116,8 @@ class Response
       header('Access-Control-Allow-Origin: ' . $this->CORS_allowed_Urls);
     }
 
+    header('X-Powered-By: PLiza');
+
     header('Access-Control-Allow-Headers: Content-Type');
 
     header('Content-Type: application/json', true);

@@ -741,7 +741,7 @@ abstract class Model
 
   private function performUpdate()
   {
-    pr( ['where' => $this->wheres, 'attributes' => $this->attributes, 'original' => $this->original]);
+    pr( ['lgc' => __FUNCTION__, 'where' => $this->wheres]);
     if( ! $this->wheres){
       if($key_name = $this->getKeyName()){
         $this->where([ $key_name => $this->getKey() ]);
@@ -752,9 +752,9 @@ abstract class Model
     }
 
 //    pr(['getKeyName' => $this->getKeyName(), 'getStringKeyName' => $this->getStringKeyName()]);
-    pr( ['currentVars' => $this->query()->currentVars() ]);
+    pr( ['lgc' => __FUNCTION__, 'currentVars' => $this->query()->currentVars() ]);
 
-    if($this->wheres){
+    if($this->currentSql()['where']){
       $this->updateTimestamps();
 
       // ToDo: remove dryRun
@@ -797,7 +797,7 @@ abstract class Model
     $this->original = $this->attributes;
 
     $this->fill($values);
-    pr(['update $values' => $values, 'attributes' => $this->attributes, 'changes' => $this->getChanges()]);
+    pr(['lgc' => __FUNCTION__, 'update $values' => $values, 'changes' => $this->getChanges()]);
 
     return $this->save();
   }
