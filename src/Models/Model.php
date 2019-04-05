@@ -3,12 +3,12 @@
 namespace Orcses\PhpLib\Models;
 
 
-use Orcses\PhpLib\Database\Connection\MysqlConnection;
-use Orcses\PhpLib\Database\Query\MysqlQuery;
-use Orcses\PhpLib\Interfaces\Modelable;
 use Orcses\PhpLib\Utility\Arr;
-use Orcses\PhpLib\Utility\Dates;
 use Orcses\PhpLib\Utility\Str;
+use Orcses\PhpLib\Utility\Dates;
+use Orcses\PhpLib\Interfaces\Modelable;
+use Orcses\PhpLib\Database\Query\MysqlQuery;
+use Orcses\PhpLib\Database\Connection\MysqlConnection;
 use Orcses\PhpLib\Database\Connection\ConnectionManager;
 use Orcses\PhpLib\Exceptions\ModelAttributeNotFoundException;
 use Orcses\PhpLib\Exceptions\ModelTableNotSpecifiedException;
@@ -89,9 +89,6 @@ abstract class Model
    */
   public static function pseudo(Modelable $object)
   {
-    pr(['ModelAccess' => $object->getTable().': '.get_class($object)]);
-//    $model = static::instance();
-
     return new PseudoModel($object);
   }
 
@@ -117,10 +114,7 @@ abstract class Model
    */
   protected function newFromExisting(array $attributes)
   {
-    pr(['newFromExisting pseudo_object $this' => $ao = $this->pseudo_object, 'table' => $ao ? $ao->getTable() : null]);
     $model = clone $this;
-
-    pr(['newFromExisting pseudo_object $model' => $ao = $model->pseudo_object, 'table' => $ao ? $ao->getTable() : null]);
 
     $model->attributes = $attributes;
 
@@ -133,6 +127,17 @@ abstract class Model
     $model->single = true;
 
     return $model;
+  }
+
+
+  /**
+   * Returns a fresh model instance
+   */
+  public function refresh()
+  {
+    $this->result = null;
+
+    return $this;
   }
 
 
@@ -153,6 +158,9 @@ abstract class Model
   }
 
 
+  /**
+   * Returns a fresh database query instance
+   */
   protected function query()
   {
     if( ! $this->query){
@@ -215,7 +223,6 @@ abstract class Model
   public function getAttribute($key)
   {
     if( ! $this->hasAttribute($key)){
-      dd('Not hasAttribute', $this->attributes, get_class($this));
       throw new ModelAttributeNotFoundException($this->getModelName(), $key);
     }
 
@@ -275,8 +282,6 @@ abstract class Model
 
   public function isFillable(string $key)
   {
-    pr(['isFillable $key' => $key, 'class' => get_class($this), 'object' => $this->pseudo_object, 'lazy' => $this->lazy_load]);
-
     // Every pseudo-model formed via the Builder class will have all its properties fillable
     // It is advised to NOT use the Builder class for models directly exposed to or manipulated by users
     if($this->force_fill || is_a($this, PseudoModel::class) && $this->pseudo_object){
@@ -307,7 +312,7 @@ abstract class Model
 
   protected function stripGuarded()
   {
-    return $this->except( $this->guarded );
+    return $this->removeAttributes( $this->guarded );
   }
 
 
@@ -330,13 +335,6 @@ abstract class Model
         $this->attributes[ $key ] = $value;
       }
     }
-    pr(['fill getValidAttributes' => $val]);
-    pr(['fill fillables' => $this->fillable]);
-    pr(['fill values' => $attributes]);
-    pr(['fill new $attributes' => $this->getChanges()]);
-    pr(['fill table_columns' => $this->table_columns]);
-    pr(['fill class' => get_class($this)]);
-    pr(['fill lazy_load' => $this->lazy_load]);
 
     return $this;
   }
@@ -377,7 +375,6 @@ abstract class Model
     $this->table = $table;
 
     if($this->table && $this->lazy_load){
-      pr(['reloadTable' => get_class($this)]);
       $this->lazy_load = false;
 
       $this->fill([]);
@@ -389,7 +386,6 @@ abstract class Model
 
   public function getTable()
   {
-    pr(['getTable' => get_class($this), '>pseudo_object' => $this->pseudo_object]);
     if( ! $this->table){
       $this->setTable();
     }
@@ -404,14 +400,8 @@ abstract class Model
 
   private function getTableColumns()
   {
-    pr(['getTableColumns table' => $this->table]);
-    pr(['getTableColumns table_columns' => $this->table_columns]);
-    pr(['getTableColumns lazy_load' => $this->lazy_load]);
-    pr(['getTableColumns class' => get_class($this)]);
-    pr(['getTableColumns pseudo_object' => $this->pseudo_object]);
     if( ! $this->table_columns and ! $this->lazy_load){
 
-      pr(['getTableColumns again??' => $this->getTable()]);
       $columns = $this->query()->getTableColumns( $this->getTable() );
 
       $string_key_name_format = $this->getStringKeyNameFormat();
@@ -439,10 +429,6 @@ abstract class Model
 
   private function getValidAttributes(array $attributes)
   {
-    pr(['getValidAttributes class' => get_class($this)]);
-    pr(['getValidAttributes $values' => $attributes]);
-    pr(['getValidAttributes table' => $this->table]);
-
     return array_intersect_key( $attributes, $this->getTableColumns() );
   }
 
@@ -549,30 +535,6 @@ abstract class Model
   }
 
 
-  protected function whereVars($column, $operator = null, $value = null){
-    if(is_array($column)) {
-//      $columns_values[] = [key($column), current($column)];
-      $columns_values = $column;
-    }
-    elseif(func_num_args() === 2){
-      $value = $operator;
-
-      $columns_values = [$column => $value];
-    }
-    else {
-      $columns_values = [ $column => [$operator, $value] ];
-    }
-
-    return $columns_values;
-  }
-
-  /*public function where(array $columns_values){
-    $this->query()->where( $this->where = $columns_values );
-
-    return $this;
-  }*/
-
-
   public function orderBy( string $column, string $direction = 'ASC'){
     $this->query()->orderBy($column, $direction);
 
@@ -604,41 +566,107 @@ abstract class Model
   }
 
 
-  public function toArray() {
+  /**
+   * Returns all rows with only the specified columns
+   * @param array $columns The columns to pick. All other columns are dropped
+   * @return $this
+   */
+  public function getOnly(array $columns)
+  {
+    return $this->getSome( 'only', $columns);
+  }
+
+
+  /**
+   * Returns all rows with only the specified columns
+   * @param array $columns The columns to pick. All other columns are dropped
+   * @return $this
+   */
+  public function getExcept(array $columns)
+  {
+    return $this->getSome( 'except', $columns);
+  }
+
+
+  protected function getSome(string $filter, array $columns)
+  {
+    $filters = [
+      'only' => 'array_diff',
+      'except' => 'array_intersect'
+    ];
+
+    if( ! array_key_exists($filter, $filters)){
+      return null;
+    }
+
+    $this->get();
+
+    if($this->rows){
+      $attributes = array_keys( $this->rows[0]->attributes );
+
+      $filter_function = $filters[ $filter ];
+
+      $drop_columns = array_values(
+        call_user_func($filter_function, $attributes, $columns)
+      );
+
+      foreach ($this->rows as &$row){
+        $row = $row->removeAttributes($drop_columns);
+      }
+    }
+
+    return $this;
+  }
+
+
+  public function each($callback, ...$arguments)
+  {
+    array_map(function(&$value) use ($callback, $arguments){
+
+      return call_user_func($callback, $value, ...$arguments);
+
+    }, $this->rows());
+  }
+
+
+  public function filter($callback, bool $count = false, ...$arguments)
+  {
+    $selected = array_filter($this->rows(), function($value) use ($callback, $arguments){
+
+      return call_user_func($callback, $value, ...$arguments);
+
+    });
+
+    return $count ? count($selected) : $selected;
+  }
+
+
+  public function any($callback, ...$arguments)
+  {
+    return !! $this->filter( $callback, true, $arguments);
+  }
+
+
+  public function toArray()
+  {
     return $this->dehydrate();
   }
 
 
-  protected function hydrate() {
-    pr(['hydrate 111' => get_class($this), 'rows' => $this->rows]);
-    pr(['hydrate pseudo_object' => $ao = $this->pseudo_object, 'table' => $ao ? $ao->getTable() : null]);
-
+  protected function hydrate()
+  {
     foreach($this->rows as &$row){
       $row = $this->newFromExisting( (array) $row );
-      pr([
-        'hydrate lazy_load' => $row->lazy_load,
-        'hydrate class' => get_class($row),
-        'hydrate getTable' => method_exists($row, 'getTable'),
-        'hydrate table' => $row->table
-      ]);
     }
-    pr(['hydrate 111 - 2 $row' => $this->rows]);
   }
 
 
   protected function dehydrate() {
-    pr(['dehydrate 222' => get_class($this), 'selected' => $this->single, 'rows' => $this->rows]);
-
-    /*if( ! $this->selected){
-      return $this->selected;
-    }*/
-
     $multiple = empty($this->single);
 
     $rows = $multiple ? $this->rows : [$this];
 
     foreach($rows as &$row){
-      if(!is_object($row)) dd('$rowee', $row);
       $row = $row->getAttributes();
     }
 
@@ -646,9 +674,8 @@ abstract class Model
   }
 
 
-  public function rows() {
-    pr(['rows 000' => get_class($this), 'rowsss' => $this->rows]);
-
+  public function rows()
+  {
     if( ! $this->result){
       $this->result = true;
 
@@ -661,42 +688,21 @@ abstract class Model
   }
 
 
-  public function count() {
+  public function count()
+  {
     return count( $this->rows() );
   }
 
 
-  public function first(){
+  public function first()
+  {
     return ($rows = $this->rows()) ? reset($rows) : null;
   }
 
 
-  public function last(){
+  public function last()
+  {
     return ($rows = $this->rows()) ? end($rows) : null;
-  }
-
-
-  /**
-   * Returns all rows with only the specified columns
-   * @param array|string $columns The columns to pick. All other columns are dropped
-   * @return array
-   */
-  public function only($columns){
-    foreach ($this->rows() as &$row){
-      $row->removeAttribute($columns);
-    }
-
-    return $this->rows;
-  }
-
-
-  /**
-   * Returns all rows with only the specified columns
-   * @param array|string $columns The columns to pick. All other columns are dropped
-   * @return array
-   */
-  public function except($columns){
-    return Arr::each($this->rows(), [Arr::class, 'pickExcept'], (array) $columns);
   }
 
 
@@ -705,7 +711,8 @@ abstract class Model
   }
 
 
-  private function setNewStringId(){
+  private function setNewStringId()
+  {
     if($string_key_name = $this->getStringKeyName()){
 
       if($id_group = $this->query()->uniqueStringId( $string_key_name )){
@@ -718,12 +725,14 @@ abstract class Model
   }
 
 
-  private function castToDefaultType($result){
+  private function castToDefaultType($result)
+  {
     return (array) $result;
   }
 
 
-  private function performInsert(){
+  private function performInsert()
+  {
     $this->updateTimestamps();
 
     // ToDo: remove dryRun
@@ -731,7 +740,6 @@ abstract class Model
 //    return $this->db()->asTransaction(function (){
 
       $insert = $this->query()->insert( $this->attributes );
-      pr(['$insert' => $insert]);
 
       return $insert;
 
@@ -741,40 +749,32 @@ abstract class Model
 
   private function performUpdate()
   {
-    pr( ['lgc' => __FUNCTION__, 'where' => $this->wheres]);
     if( ! $this->wheres){
+
       if($key_name = $this->getKeyName()){
+
         $this->where([ $key_name => $this->getKey() ]);
       }
       elseif($string_key_name = $this->getStringKeyName()){
+
         $this->where([ $string_key_name => $this->getStringKey() ]);
       }
     }
 
-//    pr(['getKeyName' => $this->getKeyName(), 'getStringKeyName' => $this->getStringKeyName()]);
-    pr( ['lgc' => __FUNCTION__, 'currentVars' => $this->query()->currentVars() ]);
-
     if($this->currentSql()['where']){
+
       $this->updateTimestamps();
 
-      // ToDo: remove dryRun
-      $update_values = $this->getChanges();
-      pr(['$update_values' => $update_values]);
+      if($update_values = $this->getChanges()){
 
-      if($update_values){
-//      if($update_values = $this->getChanges()){
-
+        // ToDo: remove dryRun
         return $this->query()->dryRun()->asTransaction(function () use($update_values){
-//    return $this->db()->asTransaction(function (){
 
-          $update = $this->query()->update( $update_values );
-          pr(['$update' => $update]);
+          return $this->query()->update( $update_values );
 
-          return $update;
         });
       }
     }
-
 
     return false;
   }
@@ -791,13 +791,10 @@ abstract class Model
 
   public function update(array $values){
     //ToDo: ...
-//    $this->lazy_load = false;
-
 
     $this->original = $this->attributes;
 
     $this->fill($values);
-    pr(['lgc' => __FUNCTION__, 'update $values' => $values, 'changes' => $this->getChanges()]);
 
     return $this->save();
   }

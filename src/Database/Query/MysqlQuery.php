@@ -1267,7 +1267,7 @@ class MysqlQuery extends Query {
     ];
 
     $this->sql = implode(' ', $composition);
-    pr(['lgc' => __FUNCTION__, '$this->wheres1' => $this->wheres, '$this->sql' => $this->sql]);
+    pr(['usr' => __FUNCTION__, '$this->wheres1' => $this->wheres, '$this->sql' => $this->sql]);
 
     return $this;
   }

@@ -16,7 +16,7 @@ class Request
 
   protected static $instance;
 
-  private $headers, $route_space, $method, $uri, $input, $files;
+  private $headers, $route_space, $method, $uri, $input, $files, $params;
 
   protected $validator, $errors, $error_code, $captured;
 
@@ -30,8 +30,8 @@ class Request
   protected static $route_params = [];
 
 
-  public function __construct(){
-    pr(['new Request' => !!static::$instance]);
+  public function __construct()
+  {
     if(static::$instance){
       // Allow Request child classes to 'capture' the parent request and its contents
       $this->capture($this);
@@ -60,8 +60,13 @@ class Request
   }
 
 
-  public function captured(){
-    return $this->captured;
+  /**
+   * Bind this current Request state to the Container, to be served in subsequent resolve() calls
+   * @param Container $container
+   */
+  public function pinCurrentState(Container $container)
+  {
+    $container->set(static::class, $this);
   }
 
 
@@ -84,22 +89,26 @@ class Request
   }
 
 
-  public function routeSpace(){
+  public function routeSpace()
+  {
     return $this->route_space;
   }
 
 
-  public function method(){
+  public function method()
+  {
     return $this->method;
   }
 
 
-  public function uri(){
+  public function uri()
+  {
     return $this->uri;
   }
 
 
-  public function input(string $field = ''){
+  public function input(string $field = '')
+  {
     if($field){
       return $this->input[ $field ] ?? null;
     }
@@ -108,46 +117,40 @@ class Request
   }
 
 
-  public function only(array $fields, bool $assoc = true){
+  public function only(array $fields, bool $assoc = true)
+  {
     return Arr::pickOnly($this->input(), $fields, $assoc);
   }
 
 
-  public function files(){
+  public function files()
+  {
     return $this->files;
   }
 
 
-  /*protected final function getContents(){
-  $this->method = $_SERVER['REQUEST_METHOD'];
-
-  $this->uri = $_SERVER['REQUEST_URI'];
-
-  // ToDo: use the files content
-  if( !empty($_FILES)){
-    $this->files = $_FILES;
+  public function setParams(array $params)
+  {
+    $this->params = $params;
   }
 
-  $input = json_decode( file_get_contents("php://input"),true);
 
-  dd($input, $_POST);
+  public function params($keys = null, bool $assoc = true)
+  {
+    if( ! $keys){
+      return $this->params;
+    }
 
-  if( ! empty($_POST['op'])) {
-    // If request includes a standard 'x-www-urlencoded-form' $_POST (e.g AngularJS file upload)
-    $input = $_POST;
+    $assoc &= ($is_array = is_array($keys));
+
+    $values = Arr::pickOnly($this->params, (array) $keys, $assoc);
+
+    return $is_array ? $values : array_shift($values);
   }
 
-  if(empty($input)) {
-    // If empty request (e.g dev-server ping), set default op = server.ping
-    // This is necessary to handle empty request normally and prevent CORS error in the response
-    $input = [
-      'op' => Application::get_op('server.ping')
-    ];
-  }
 
-  $this->input = $input;
-}*/
-  protected final function getContents(){
+  protected final function getContents()
+  {
     $this->headers = getallheaders();
 
     $this->method = $_SERVER['REQUEST_METHOD'];
@@ -196,7 +199,7 @@ class Request
     }
 
     if( ! $error){
-      $error = Auth::error(Auth::PLS_CONTINUE);
+      $error = Auth::error(Auth::PLEASE_CONTINUE);
     }
 
     return static::retryOrFail($route_key, $error);
@@ -210,6 +213,8 @@ class Request
    */
   public static function abort(array $error_code = [], bool $log_out = false)
   {
+    pr(['usr' => __FUNCTION__, '$error_code' => $error_code, '$log_out' => $log_out]);
+
     if( ! $error_code){
       $error_code = ['App', 2];
     }

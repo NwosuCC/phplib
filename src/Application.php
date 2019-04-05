@@ -120,37 +120,44 @@ final class Application extends Foundation
   {
     Router::loadRoutes();
 
-//    [$method, $uri, $route_space] = [$request->method(), $request->uri(), $request->routeSpace()];
-
-    // Get Matching Route
-    $controller = $arguments = $attributes = $result = null;
-
+    // Get matching Route
     $route = Router::find( ...$request->currentRouteParams() );
+
+    $controller = $arguments = $attributes = $result = null;
 
     if($route){
       [$controller, $arguments, $attributes] = $route->props(['target', 'parameters', 'attributes']);
+
+      // Bind route parameters into request
+      $request->setParams( $arguments );
     }
-    pr(['lgc' => __FUNCTION__, '$controller' => $controller, '$arguments' => $arguments, '$attributes' => $attributes]);
+    pr(['usr' => __FUNCTION__, '$controller' => $controller, '$arguments' => $arguments, '$attributes' => $attributes]);
+
 
     // Abort request if controller is invalid
     if( ! $controller){
-      pr('checks 111');
+      pr(['usr' => __FUNCTION__, 'checks 111 No $controller' => $controller]);
       $request::abort();
     }
+
 
     // Run specified Middleware
     if( isset($attributes['middleware'])){
 
-      Middleware::run($request, (array) $attributes['middleware'] );
+      $request = Middleware::run($request, $attributes['middleware']);
     }
+    pr(['usr' => __FUNCTION__, '$request after Middleware' => $request]);
+
+
+    // Pin the final Request state
+    $request->pinCurrentState( $this->container );
+
 
     if($controller instanceof \Closure){
-      pr('checks 222');
 
       $result = $controller->call($this, $arguments);
     }
     else {
-      pr('checks 333');
       [$controller, $method] = $this->controller->getClassAndMethod($controller);
 
       // Resolve controller from DI Container
@@ -168,36 +175,29 @@ final class Application extends Foundation
 //        $class_name = basename( get_class($dep));
 
         if(is_a($dep, Request::class)){
-//          dd($class_name, $dep->input());
 
+          // Authorize request
           if(method_exists($dep, 'authorize') && ! $dep->authorize()){
+
             $output = Auth::error(Auth::NOT_AUTHORIZED);
             break;
           }
 
+          // Validate request
           if(method_exists($dep, 'rules')){
+
             $request->validateWith( $dep->rules() );
 
             if($output = $request->errors()){
               break;
             }
           }
-
-//          $dep = $request->instance();
-//          dd($dep->input());
-
-          /*dd(
-            ['dep parameter name' => $parameter_name],
-            ['dep class name' => $class_name],
-            ['Request authorize' => method_exists($dep, 'authorize')],
-            ['Request transform' => method_exists($dep, 'transform')],
-            ['Request rules' => method_exists($dep, 'rules')]
-          );*/
         }
         elseif(is_a($dep, Model::class)){
-//          dd('$dep Model', $parameter_name, $class_name);
 
+          // Inject Model dependencies into controller
           if(array_key_exists($parameter_name, $arguments)){
+
             $dep = Model::newFromObj($dep, $arguments[ $parameter_name ]);
           }
         }
@@ -205,52 +205,16 @@ final class Application extends Foundation
       }
 
       if(empty($output)){
-//      dd('$dependencies', $dependencies);
         $dependencies = array_values($dependencies);
 
         // Call Controller Method
         $output = $reflectorMethod->invokeArgs($controller_class, $dependencies);
       }
 
-//      dd(
-//        ['controller name' => $controller],
-//        ['controller class' => $controller_class],
-//        ['method name' => $method],
-//        ['method arguments' => $arguments],
-//        ['method reflector' => $reflectorMethod],
-//        ['method dependencies' => $dependencies],
-//        ['method $errors' => $errors]
-//      );
-
-      pr(['$output' => $output]);
       $result = Result::prepare($output);
-      pr(['$result' => $result]);
     }
 
-//    dd('$result', $result);
-
-    /*$input = $request->input();
-      dd($input);
-
-    foreach($arguments as $key => $arg){
-      $arguments[ $key ] = $input[ $key ] ?? null;
-    }*/
-
-
-//    dd('$controller', $controller);
-
-
-    // Check Access
-//    $this->auth()->check();
-
-    // Check other Middleware
-
-
-    // Call Controller method
-
-//    if(!$result) dd('No controller', $method, $uri, $route_space);
-
-//      dd('$result', $result);
+    // Return packaged response to App index for dispatch
     return Response::package( $result );
   }
 

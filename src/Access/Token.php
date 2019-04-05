@@ -8,17 +8,12 @@ use Orcses\PhpLib\Cache\DatabaseCache;
 
 class Token
 {
-  public function __construct()
-  {
-  }
-
-
   /**
    * Retrieves a new token
    * @param array  $user_info The user info to embed in the token
    * @return string|null
    */
-  public static function get(array $user_info = [])
+  public static function generate(array $user_info = [])
   {
     list($key, $token, $expiry) = JWToken::getToken( implode('.', $user_info));
 
@@ -35,16 +30,16 @@ class Token
    * @param string  $token
    * @return array
    */
-  public static function verifyToken(string $token)
+  public static function verify(string $token)
   {
     if($verified = JWToken::verifyToken($token)) {
 
       [$key, $token, $expiry, $user_info] = $verified;
 
+      $user_info = explode('.', $user_info);
+
       if($isValidToken = DatabaseCache::get($key)){
-        return [
-          'token' => $token, 'user' => $user_info, 'expiry' => $expiry
-        ];
+        return compact('token', 'user_info', 'expiry');
       }
     }
 

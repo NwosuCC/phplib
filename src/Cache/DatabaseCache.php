@@ -2,8 +2,8 @@
 
 namespace Orcses\PhpLib\Cache;
 
-use Orcses\PhpLib\Models\Model;
 use InvalidArgumentException;
+use Orcses\PhpLib\Models\Model;
 use Orcses\PhpLib\Interfaces\Modelable;
 
 

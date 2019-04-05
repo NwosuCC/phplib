@@ -4,9 +4,7 @@ namespace Orcses\PhpLib\Access;
 
 use Exception;
 use Firebase\JWT\JWT;
-use Net\Models\User;
 use Orcses\PhpLib\Utility\Arr;
-use Orcses\PhpLib\Utility\Str;
 
 
 class JWToken
@@ -14,18 +12,20 @@ class JWToken
   protected static $algorithm = ['HS256'];
 
 
-  protected static function key() {
+  protected static function key()
+  {
     // ToDo: Refactor, import $app, throw Exception if not exists
     return env('APP_KEY');
   }
 
 
-  protected static function keyId($payload) {
+  protected static function keyId($payload)
+  {
     [$iat, $iss, $exp] = Arr::pickOnly($payload, ['iat', 'iss', 'exp'],false);
 
     $user_info = $payload['inf']['user'];
 
-    $public_key = substr( Str::hashedPassword($iat . $iss . $user_info), 9);
+    $public_key = substr( sha1($iat . $iss . $user_info), 9);
 
     $private_key = md5($public_key . $exp . '%bd# Ax9(^@');
 
@@ -33,7 +33,8 @@ class JWToken
   }
 
 
-  public static function getToken(string $user_info = null) {
+  public static function getToken(string $user_info = null)
+  {
     $key = static::key();
 
     // ToDo: Refactor, import $app, throw Exception if not exists
@@ -64,7 +65,8 @@ class JWToken
   }
 
 
-  public static function verifyToken(string $token) {
+  public static function verifyToken(string $token)
+  {
     if(empty($token)){
       return null;
     }
@@ -94,7 +96,7 @@ class JWToken
 
     list($private_key_id, $public_key_id, $expiry) = static::keyId($decoded_array);
 
-    return [$private_key_id, $token, $expiry, $user_info];
+    return $public_key_id ? [$private_key_id, $token, $expiry, $user_info] : null;
   }
 
 }

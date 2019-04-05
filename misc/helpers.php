@@ -204,7 +204,8 @@ if (! function_exists('pr')) {
   {
     $allow = [
 //      'tmp' => '',
-      'lgc' => ''
+//      'lgc' => ''
+      'usr' => '',
     ];
     if(!is_array($data) || ! array_intersect_key($allow, $data)) return;
 

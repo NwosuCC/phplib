@@ -22,7 +22,7 @@ class Query
   protected $tables = [];
 
   /** A map of db.table to their definitions */
-  protected $definitions = [];
+  protected static $definitions = [];
 
 
   public function __construct(Connectible $connection) {
@@ -52,17 +52,17 @@ class Query
 
 
   protected function addTableDefinition(string $table, $definitions) {
-    $this->definitions[ $this->database ][ $table ] = $definitions;
+    static::$definitions[ $this->database ][ $table ] = $definitions;
   }
 
 
   protected function hasTableDefinition(string $table) {
-    return ! empty($this->definitions[ $this->database ][ $table ]);
+    return ! empty(static::$definitions[ $this->database ][ $table ]);
   }
 
 
   protected function getTableDefinition(string $table) {
-    return $this->definitions[ $this->database ][ $table ];
+    return static::$definitions[ $this->database ][ $table ];
   }
 
 

@@ -5,7 +5,6 @@ namespace Orcses\PhpLib\Access;
 
 use Orcses\PhpLib\Request;
 use Orcses\PhpLib\Response;
-use Orcses\PhpLib\Utility\Str;
 use Orcses\PhpLib\Models\Model;
 use Orcses\PhpLib\Utility\Dates;
 use Orcses\PhpLib\Routing\Router;
@@ -18,9 +17,9 @@ final class Auth implements Modelable
 
   const REPORT_KEY = 'access';
 
-  const INV_CREDENTIALS = 1;
+  const INVALID_CREDENTIALS = 1;
   const NOT_AUTHORIZED = 2;
-  const PLS_CONTINUE = 3;
+  const PLEASE_CONTINUE = 3;
   const THROTTLE_DELAY = 6;
 
   protected static $throttle_delay = 15;
@@ -86,7 +85,7 @@ final class Auth implements Modelable
   {
     if( !($auth = static::auth()->user) && $log_out){
 
-      Request::abort( Auth::error(Auth::PLS_CONTINUE), true);
+      Request::abort( Auth::error(Auth::PLEASE_CONTINUE), true);
     }
 
     return !! $auth;
@@ -109,7 +108,6 @@ final class Auth implements Modelable
   {
     if(self::id()){
       self::auth()->user->imposeAttribute($key, $value);
-      pr(['auth user' => self::auth()->user]);
     }
   }
 
@@ -135,22 +133,15 @@ final class Auth implements Modelable
     if( self::user()){
       self::updateStats();
 
-      if( ! $user_info = self::$token_fields){
-        $user_info = [
-          self::id(), self::user()->{'email'} ?? ''
-        ];
-      }
-
-      if( ! $token =  Token::get( $user_info )) {
-        // JWToken not set, please try again
-        Request::abort( Auth::error(Auth::PLS_CONTINUE), true);
+      if( ! $token = Token::generate( static::getUserInfo() )) {
+        // User token not set. Abort and try again
+        Request::abort( Auth::error(Auth::PLEASE_CONTINUE), true);
       }
 
       self::set('token', $token);
     }
     else{
-      // Invalid credentials
-      $error = Auth::error(self::INV_CREDENTIALS);
+      $error = Auth::error(self::INVALID_CREDENTIALS);
 
       // Prevent rapid multiple Login attempts
       Request::throttle( Router::getLoginRouteName(), $error);
@@ -160,50 +151,95 @@ final class Auth implements Modelable
   }
 
 
-  // Authorization
+  public static function verify(string $token)
+  {
+    if($verified = Token::verify($token)) {
+      $id = array_shift( $verified['user_info'] );
+
+      static::auth()->authenticate(['id' => $id]);
+
+      if(self::user()){ return; }
+    }
+
+    self::logout(Auth::PLEASE_CONTINUE);
+  }
+
 
   protected function authenticate($vars = [])
   {
-    if(self::user()) {
-      return true;
-    }
-
-    // Login:
-    $user = $vars['email'] ?? $vars['username'];
-    $password = $vars['password'];
-
-    $where = [
-      'user|a' => [
-//        'em|a'=> [
-          "email" => $user,
-//        ],
-        'un|o'=> [
-          "username" => $user,
-        ],
-      ],
-//      'password' => $password,
-//      'password|b' => '! isnull(`password`)',
+    $where_active = [
       'status' => ['BETWEEN', 1, 2],
       'timeout|b' => 'timeout <= floor((unix_timestamp() - unix_timestamp(last_login)) / 60)'
     ];
-    pr(['lgc' => __FUNCTION__, 'authenticate $where' => $where]);
 
+    if($user = $vars['email'] ?? $vars['username'] ?? null){
+      // Login:
+      $password = $vars['password'];
+
+      $where = [
+        'user|a' => [
+          "email" => $user,
+          'un|o'=> [
+            "username" => $user,
+          ],
+        ]
+      ];
+    }
+    elseif($id = $vars['id'] ?? null){
+      // Token:
+      $where = [$this->model->getKeyName() => $id];
+    }
+    pr(['usr' => __FUNCTION__, '$where' => $where]);
+
+    if( ! empty($where)){
+      $where = array_merge($where, $where_active);
+
+      $this->setAuthUser($where, $password ?? null);
+    }
+  }
+
+
+  protected function setAuthUser(array $where, string $password = null)
+  {
     if($result = $this->model->where($where)->first()){
-      $hashed_password = $result->getAttribute('password');
 
-      if(password_verify($password, $hashed_password)){
-        pr(['lgc' => __FUNCTION__, 'authenticate $result' => $result]);
-        $this->user = $result;
-        $this->id = $this->user->getKey();
+      if($password){
+        $hashed_password = $result->getAttribute('password');
 
-        // Set authenticated user once and for all
-        static::$auth = $this;
-
-        static::auth()->user->removeAttribute('password');
+        if( ! password_verify($password, $hashed_password)){
+          return;
+        }
       }
+
+      $this->user = $result;
+      $this->id = $this->user->getKey();
+
+      // Set authenticated user one time
+      static::$auth = $this;
+
+      static::auth()->user->removeAttribute('password');
+    }
+  }
+
+
+  protected static function getUserInfo()
+  {
+    $user_info = [];
+
+    foreach(self::$token_fields as $field) {
+      $user_info[] = self::user()->getAttribute( $field );
     }
 
-    return (!empty(Auth::user()));
+    if( ! $user_info){
+      $user_info = [
+        self::user()->{'email'} ?? self::user()->{'username'} ?? ''
+      ];
+    }
+
+    // Add 'id' to be used internally for token verification
+    array_unshift( $user_info, self::id() );
+
+    return $user_info;
   }
 
 
@@ -215,7 +251,7 @@ final class Auth implements Modelable
 
 
   // ToDo: refactor to make generic, else, move to outer App level
-  // If $restrict is true, sets duration (minutes) before a new login attempt is allowed from this User
+  // If $restrain is true, sets duration (minutes) before a new login attempt is allowed from this User
   protected static function updateStats($restrain = false)
   {
     if( ! self::id()) {
@@ -229,7 +265,6 @@ final class Auth implements Modelable
 
     return self::user()->update($update_values);
   }
-
 
 
 }

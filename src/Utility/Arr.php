@@ -113,7 +113,8 @@ class Arr
   }
 
 
-  public static function where(array $array, callable $where){
+  public static function where(array $array, callable $where)
+  {
     return array_filter($array, function ($value) use($where){
       return call_user_func($where, $value);
     });
@@ -154,6 +155,23 @@ class Arr
 
   public static function get(array $array, $key){
     return arr_get($array, $key);
+  }
+
+
+  public static function pull(array $array, $keys){
+    $is_array = is_array($keys);
+
+    $selected = [];
+
+    foreach((array)$keys as $key){
+      $selected[] = $array[ $key ];
+
+      unset( $array[ $key ] );
+    }
+
+    $selected =  $is_array ? $selected : $selected[0];
+
+    return [$array, $selected];
   }
 
 

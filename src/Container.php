@@ -100,6 +100,7 @@ class Container
    * @return mixed|object
    * @throws Exception
    */
+//  public function resolveMethod($concrete, $method, array $arguments = [])
   public function resolveMethod($concrete, $method)
   {
     $reflector = new \ReflectionMethod($concrete, $method);
@@ -128,6 +129,7 @@ class Container
    * @return array
    * @throws Exception
    */
+//  public function getDependencies($parameters, array $arguments = [])
   public function getDependencies($parameters)
   {
     $dependencies = [];
@@ -147,10 +149,19 @@ class Container
 ////        'getDefaultValueConstantName', ($con ? $parameter->getDefaultValueConstantName() : 'no-con')
 //      ]);
 
+//      pr(['usr' => __FUNCTION__, '$parameter' => $parameter, '$dependency' => $dependency, '$arguments' => $arguments]);
+//      pr(['usr' => __FUNCTION__, 'canBePassedByValue' => $parameter->canBePassedByValue(), 'isDefaultValueAvailable' => $parameter->isDefaultValueAvailable()]);
+
+
       if ($dependency === NULL) {
 
         // check if default value for a parameter is available
-        if ($parameter->isDefaultValueAvailable()) {
+        /*if (array_key_exists( $name = $parameter->getName(), $arguments)) {
+
+          // Add the value for the parameter from the item in the supplied $arguments
+          $dependencies[] = $arguments[ $name ];
+        }
+        else*/if ($parameter->isDefaultValueAvailable()) {
 
           // get default value of parameter
           $dependencies[] = $parameter->getDefaultValue();

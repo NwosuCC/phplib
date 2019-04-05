@@ -11,6 +11,7 @@ use Orcses\PhpLib\Exceptions\Routes\MethodNotSupportedException;
 use Orcses\PhpLib\Exceptions\Routes\RouteNotYetRegisteredException;
 use Orcses\PhpLib\Exceptions\Routes\RoutesFileNotFoundException;
 use Orcses\PhpLib\Utility\Arr;
+use Orcses\PhpLib\Utility\Str;
 
 
 class Router
@@ -53,7 +54,7 @@ class Router
     'get', 'post', 'put', 'patch', 'delete', 'options'
   ];
 
-  protected static $routes = [], $route_names = [];
+  protected static $routes = [], $param_routes = [], $route_names = [];
 
   protected $id, $file, $method, $uri, $key, $name, $target, $parameters;
 
@@ -110,10 +111,12 @@ class Router
   protected static function baseRoute()
   {
     if( ! static::$base_route){
-      static::$base_route = '\\' . ltrim( base_dir(), realpath($_SERVER['DOCUMENT_ROOT']));
+      $base_route = '\\' . ltrim( base_dir(), realpath($_SERVER['DOCUMENT_ROOT']));
+
+      static::$base_route = real_url( $base_route );
     }
 
-    return real_url(static::$base_route);
+    return static::$base_route;
   }
 
 
@@ -121,7 +124,7 @@ class Router
   {
     $clean_uri = strtolower( ltrim( real_url($uri)));
 
-    $route_path = '\\' . ltrim($clean_uri, static::baseRoute());
+    $route_path = '\\' . Str::stripLeadingChar($clean_uri, static::baseRoute().'/');
 
     return real_url($route_path);
   }
@@ -220,18 +223,214 @@ class Router
     $this->parameters = $parameters;
     $this->addAttributes( $this->currentGroupAttributes() );
 
+    if(stripos($uri, '{') !== false){
+      $this->registerParams();
+    }
+
+    pr(['usr' => __FUNCTION__, 'method' => $method, 'uri' => $uri]);
+
     static::$routes[ $file ][ $method ][ $uri ] = $this;
+  }
+
+
+  protected function registerParams()
+  {
+    [$file, $method, $uri] = [$this->file, $this->method, $this->uri];
+
+    if($duplicate = static::filterParamRoute([$file, $method, $uri], true)){
+
+      $duplicate = array_map(function ($val){ return implode('/', $val); }, $duplicate);
+
+      [$route, $duplicate_route] = $duplicate;
+
+      $arguments = ["The supplied route '{$route}' possibly has a duplicate: '{$duplicate_route}''"];
+
+      $this->addException( DuplicateRoutesException::class, $uri, $arguments );
+
+      return;
+    }
+
+    $uri_parts = Arr::stripEmpty( explode('/', $uri));
+
+    $param_routes = [];
+
+    foreach (array_reverse($uri_parts) as $i => $part){
+      $item = ! empty($param_routes) ? $param_routes : 1234;
+
+      $param_routes = [$part => $item];
+    }
+
+    $param_routes = [ $file => [ $method => $param_routes]];
+
+    static::$param_routes = array_merge_recursive( static::$param_routes, $param_routes );
+
+    pr(['usr' => __FUNCTION__,'$param_routes' => $param_routes,'static::$param_routes' => static::$param_routes]);
+  }
+
+
+  /**
+   * Narrow down the routes array to only the routes with similar base paths
+   * E.g '/posts/...' where $part === 'post'
+   * @param array $uri_parts
+   * @param array $param_routes
+   * @return array
+   */
+  protected static function hasCommonBasePath(array $uri_parts, array $param_routes)
+  {
+    $stripped_parts = [];
+
+    foreach ($uri_parts as $i => $part){
+
+      if( ! isset($param_routes[ $part ])){
+        break;
+      }
+
+      $param_routes = $param_routes[ $part ];
+
+      // Strip the 'part's that (are set) the param-routes have in common
+      unset( $uri_parts[ $i ] );
+
+      // Collate the stripped parts to merge back into the returned params
+      $stripped_parts[] = $part;
+    }
+
+    return [ array_values($uri_parts), $param_routes, $stripped_parts ];
+  }
+
+
+  /**
+   * Flatten the keys using Dot Notation, then, filter the array dimensions (2-dim, 3-dim, etc)
+   * E.g '/posts/...' where $part === 'post'
+   * @param array $param_routes
+   * @param int $dimension
+   * @return array
+   */
+  protected static function hasEqualDimension(array $param_routes, int $dimension)
+  {
+    $param_routes_keys = array_keys( Arr::toDotNotation( $param_routes ));
+
+    // Pick only the param-routes whose key dimension equals the dimensions of the target $uri
+    $param_routes_keys = array_filter( $param_routes_keys, function($param) use($dimension)
+    {
+      $param_count = count( explode('.', $param));
+
+      return $param_count === $dimension;
+    });
+
+    if($param_routes_keys = array_values($param_routes_keys)){
+
+      foreach ($param_routes_keys as $i => $p_route){
+        $param_routes_keys[ $i ] = Arr::stripEmpty( explode('.', $p_route));
+      }
+
+      return $param_routes_keys;
+    }
+
+    return $param_routes_keys;
+  }
+
+
+  /**
+   * Recursively eliminate non-matching routes
+   * a.) compare as normal path strings:
+   *    If EQUAL, the route matches up to that point. Continue loop
+   *    Else (if NOT EQUAL),
+   *    b.) compare as placeholders:
+   *        If BOTH ARE PLACEHOLDERS, the route may still match. Continue loop
+   *        Else (NOT BOTH ARE PLACEHOLDERS), unset the route - it does not match the target $uri
+   *
+   * @param array $args
+   * @param bool $reg
+   * @return array
+   */
+  protected static function getUriBestMatch(array $args, bool $reg = false)
+  {
+    [$uri_parts, $param_routes_keys, $stripped_parts] = $args;
+
+    $param_routes_keys_copy = $param_routes_keys;
+
+    $regex = "/{[ ]*([^ {}]+)+[^{}]*}/";
+
+    foreach ($uri_parts as $i => $uri_path){
+
+      $uri_path_is_placeholder = preg_match($regex, $uri_path);
+
+      foreach ($param_routes_keys_copy as $ip => $param_route){
+
+        $param_route_path = $param_route[ $i ];
+
+        if($uri_path === $param_route_path){
+          // Current $param_route still matches target $uri. Ok for subsequent tests
+          continue;
+        }
+
+        $param_route_path_is_placeholder = preg_match($regex, $param_route_path);
+
+        // $uri_path_is_placeholder === true implies $reg === true
+        $no_match_1 = ($uri_path_is_placeholder && ! $param_route_path_is_placeholder);
+
+        $no_match_2 = (($reg && ! $uri_path_is_placeholder) || ! $param_route_path_is_placeholder);
+
+        if( $no_match_1 || $no_match_2) {
+          // Free this route from subsequent tests
+          unset( $param_routes_keys[$ip] );
+        }
+      }
+    }
+
+    if( ! $params_best_match =  array_shift($param_routes_keys)){
+      // There is no route params finally matching the target $uri
+      return [];
+    }
+
+    foreach($stripped_parts as $s_part){
+      array_unshift($uri_parts, $s_part);
+      array_unshift($params_best_match, $s_part);
+    }
+
+    return [ $uri_parts, $params_best_match ];
+  }
+
+
+  protected static function filterParamRoute(array $route_props, bool $reg = false)
+  {
+    [$route_space, $method, $uri] = $route_props;
+
+    // Split the $uri path into its levels (paths)
+    $uri_parts = array_values( Arr::stripEmpty( explode('/', $uri)));
+
+    if( ! $param_routes = static::$param_routes[ $route_space ][ $method ] ?? null){
+      return null;
+    }
+
+
+    // Get param-routes closely related to the target $uri
+    $related_routes = static::hasCommonBasePath($uri_parts, $param_routes);
+
+    [ $uri_parts, $param_routes, $stripped_parts ] = $related_routes;
+
+
+    // From the closely related param-routes, get the routes having same key dimension as the target $uri
+    $param_routes_keys = static::hasEqualDimension($param_routes, count($uri_parts));
+
+    if( ! $param_routes_keys){
+      // There is no route whose key dimension matches the target $uri
+      return null;
+    }
+
+    // Final attempt to find a match for the target $uri
+    return static::getUriBestMatch([$uri_parts, $param_routes_keys, $stripped_parts], $reg);
   }
 
 
   protected function validateRouteName(string $name)
   {
-    if( stristr($name, '.') !== false ){
+    /*if( stristr($name, '.') !== false ){
       $arguments = ["Valid route name must not have a dot (.), {$name} given"];
 
       $error = $this->addException( InvalidArgumentException::class, $name, $arguments );
     }
-    elseif( ! $key = $this->key or ! Arr::get(static::routes(), $key) ){
+    else*/if( ! $key = $this->key or ! Arr::get(static::routes(), $key) ){
 
       $error = $this->addException(RouteNotYetRegisteredException::class, $key, [$name]);
     }
@@ -244,10 +443,8 @@ class Router
   }
 
 
-  // Called from Auth::attempt()
   public static function getLoginRouteName()
   {
-    pr(['lgc' => __FUNCTION__, 'login name' => static::$LOGIN_ROUTE_NAME]);
     return static::$LOGIN_ROUTE_NAME;
   }
 
@@ -322,7 +519,42 @@ class Router
       $route_space = static::currentRouteFile();
     }
 
-    return static::routes()[ $route_space ][ $method ][ $uri ] ?? null;
+    $route = static::routes()[ $route_space ][ $method ][ $uri ] ?? null;
+
+    if( ! $route){
+      $route = static::findByRouteParams($route_space, $method, $uri);
+    }
+
+    pr(['usr' => __FUNCTION__, 'given $route_space' => $route_space, 'method' => $method, 'uri' => $uri, 'found $route' => $route]);
+
+    return $route;
+  }
+
+
+  protected static function findByRouteParams(string $route_space, string $method, string $uri)
+  {
+    if( ! $matches = static::filterParamRoute([$route_space, $method, $uri])){
+      return null;
+    }
+
+    [$uri_parts, $uri_match] = $matches;
+
+    $uri_match_path = '/' . implode('/', $uri_match);
+
+    /** @var null|Router $route */
+    if($route = static::routes()[ $route_space ][ $method ][ $uri_match_path ] ?? null){
+
+      foreach ($uri_match as $i => $key){
+
+        $key = str_replace('{', '', str_replace('}', '', $key), $key_is_placeholder);
+
+        if($key_is_placeholder){
+          $route->parameters[ $key ] = $uri_parts[ $i ];
+        }
+      }
+    }
+
+    return $route;
   }
 
 

@@ -21,43 +21,6 @@ abstract class Middleware
   abstract public function handle(Request $request, Closure $next);
 
 
-  public static function run(Request $request, array $group)
-  {
-    $middleware_group = [];
-
-    foreach ((array) $group as $key){
-      $middleware = static::getClass( $key );
-
-      if(! $middleware || ! is_a($middleware,static::class)){
-        throw new RuntimeException(
-          "Middleware class for '{$key}' must extend the base class " . static::class
-        );
-      }
-
-      $middleware_group[] = static::getClass( $key );
-    }
-
-    /*$next = function($request) use($middleware_group){
-      $middleware = array_shift($middleware_group);
-
-      return call_user_func([$middleware, 'handle'], $request);
-    };*/
-
-    $next = function($request) use($middleware_group){
-      return call_user_func([$middleware, 'handle'], $request, $next ?? null);
-    };
-
-    $result = null;
-    $n = 2;
-    while($middleware = array_shift($middleware_group) and $n--){
-      $request = call_user_func([$middleware, 'handle'], $request, $next);
-    }
-
-
-    return $result;
-  }
-
-
   public static function get(string $key)
   {
     if( ! array_key_exists($key, static::$middleware)){
@@ -68,11 +31,61 @@ abstract class Middleware
   }
 
 
-  public static function getClass(string $key)
+  public static function run(Request $request, $group)
+  {
+    $group = (array) $group;
+
+    $middleware_group = static::buildGroup( $group );
+
+    foreach($middleware_group as [$middleware, $next]){
+
+      $request = call_user_func([$middleware, 'handle'], $request, $next);
+    }
+
+    return $request;
+  }
+
+
+  protected static function buildGroup(array $group)
+  {
+    $middleware_group = [];
+
+    $n = 2;
+    while($key = array_pop($group) and $n--){
+
+      $middleware = static::getClass( $key );
+
+      if( empty($next)){
+        $next = function($request){ return $request; };
+      }
+      else {
+        $next_middleware = end($middleware_group)[0];
+
+        $next = function($request) use($next_middleware, $next){
+          return call_user_func([$next_middleware, 'handle'], $request, $next);
+        };
+      }
+
+      $middleware_group[] = [ $middleware, $next ];
+    }
+
+    return array_reverse($middleware_group);
+  }
+
+
+  protected static function getClass(string $key)
   {
     $class_name = in_array($key, static::$middleware) ? $key : static::get($key);
 
-    return app()->make( $class_name );
+    $middleware = app()->make( $class_name );
+
+    if(! $middleware || ! is_a($middleware,static::class)){
+      throw new RuntimeException(
+        "Middleware class for '{$key}' must extend the base class " . static::class
+      );
+    }
+
+    return $middleware;
   }
 
 
