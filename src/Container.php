@@ -57,9 +57,7 @@ class Container
    */
   public function resolve($concrete, $parameters)
   {
-//    pr(['resolve', $concrete]);
     if ($concrete instanceof Closure) {
-//      pr(['Closure', $concrete]);
       return $concrete($this, $parameters);
     }
 
@@ -72,7 +70,6 @@ class Container
 
     // get class constructor
     $constructor = $reflector->getConstructor();
-//    pr(['is_null($constructor)', is_null($constructor), '$constructor', $constructor]);
 
     if (is_null($constructor)) {
       // get new instance from class

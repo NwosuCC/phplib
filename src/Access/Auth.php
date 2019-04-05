@@ -189,7 +189,6 @@ final class Auth implements Modelable
       // Token:
       $where = [$this->model->getKeyName() => $id];
     }
-    pr(['usr' => __FUNCTION__, '$where' => $where]);
 
     if( ! empty($where)){
       $where = array_merge($where, $where_active);
@@ -213,6 +212,7 @@ final class Auth implements Modelable
 
       $this->user = $result;
       $this->id = $this->user->getKey();
+      pr(['dbc' => __FUNCTION__, '$this->user' => $this->user]);
 
       // Set authenticated user one time
       static::$auth = $this;

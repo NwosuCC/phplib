@@ -213,6 +213,7 @@ final class Application extends Foundation
 
       $result = Result::prepare($output);
     }
+//    dd(['usr' => __FUNCTION__, '$result' => $result]);
 
     // Return packaged response to App index for dispatch
     return Response::package( $result );

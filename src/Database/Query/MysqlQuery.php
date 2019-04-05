@@ -666,7 +666,7 @@ class MysqlQuery extends Query {
       Logger::log('sql', [$this->connection->affected_rows, $sql]);
     }
 
-    pr(['lgc' => __FUNCTION__, '$sql' => trim($sql), 'affected_rows' => $this->connection->affected_rows, 'num_rows' => $this->result->num_rows ?? '']);
+    pr(['usr' => __FUNCTION__, '$sql' => trim($sql), 'affected_rows' => $this->connection->affected_rows, 'num_rows' => $this->result->num_rows ?? '']);
 
     if ( ! $this->result){
       static::throwError(

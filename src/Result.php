@@ -105,7 +105,6 @@ class Result
       }
     }*/
 
-    pr(['result $info' => $info]);
     return new static($result, $info);
   }
 
