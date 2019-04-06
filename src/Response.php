@@ -3,18 +3,67 @@
 namespace Orcses\PhpLib;
 
 
+use Exception;
+use Orcses\PhpLib\Exceptions\FileNotFoundException;
+
 class Response
 {
-  private $CORS_allowed_Urls;
+  /** @var static */
+  protected static $instance;
 
-  private $http_status_code, $http_status_message, $body;
+  protected static $reports = [];
+
+  protected static $success_codes = [];
+
+  protected $CORS_allowed_Urls;
+
+  protected $body, $packaged = false;
+
+  protected $http_status_code, $response_message = '';
 
 
-  public function __construct(int $http_code, array $data = [])
+  public function __construct(int $http_code = 200, array $data = [])
   {
     $this->setHttpCode($http_code)->setBody($data);
 
     $this->set_CORS_allowed_Urls();
+
+    if( ! static::$instance){
+      // ToDo: make a list of valid Status Codes
+      static::$success_codes = range(200, 320);
+
+      static::$instance = $this;
+    }
+  }
+
+
+  public static function instance(int $http_code)
+  {
+    // ToDo: make a list of valid Status Codes
+    return static::$instance->setHttpCode($http_code);
+  }
+
+
+  /**
+   * Packages a raw response object for dispatch
+   * @param array $data
+   * @return  static
+   */
+  public function json(array $data)
+  {
+    $code = in_array($this->http_status_code , static::$success_codes) ? '01' : 1;
+
+    $replaces = ['message' => $this->response_message];
+
+    return $this->get( [report()::APP, [$code, $replaces], $data] );
+  }
+
+
+  public function message(string $message)
+  {
+    $this->response_message = $message;
+
+    return $this;
   }
 
 
@@ -28,21 +77,17 @@ class Response
   {
     [$http_code, $data] = $result->getResponseData();
 
-    return new static($http_code, $data);
+    $response = new static($http_code, $data);
+
+    $response->packaged = true;
+
+    return $response;
   }
 
 
   public function setHttpCode($http_status_code)
   {
-    $http_status_message = '';
-
-    if(is_array($http_status_code)){
-      [$http_status_code, $http_status_message] = $http_status_code;
-    }
-
-    $this->http_status_code = $http_status_code;
-
-    $this->http_status_message = $http_status_message;
+    $this->http_status_code = (int) $http_status_code;
 
     return $this;
   }
@@ -71,14 +116,26 @@ class Response
 
   public function send()
   {
-    $this->sendHeaders();
+    if( ! ($response = $this)->packaged ){
 
-    die(json_encode($this->body));
+      [$status_code, $message] = [$response->http_status_code, $response->response_message];
+
+      $response = $response->json( $response->body );
+
+      $response->setHttpCode( $status_code );
+      $response->message( $message );
+    }
+
+    $response->sendHeaders();
+
+    die(json_encode($response->body));
   }
 
-  /*public function send()
+
+  // ToDo: Use this standard HttpResponse class
+  public function send_New()
   {
-    $http = new \HttpResponse();
+    /*$http = new \HttpResponse();
 
     $headers = [
       'Access-Control-Allow-Origin' => $this->CORS_allowed_Urls ?? '',
@@ -95,16 +152,13 @@ class Response
 //    $http->setData(json_encode($this->body));
     $http->status( $this->http_status_code );
 
-    $http->setData( $this->body );
-
-  }*/
+    $http->setData( $this->body );*/
+  }
 
 
   private function sendHeaders()
   {
     $http_status_code = $this->http_status_code ?: 200;
-
-    $http_status_message = $this->http_status_message ?: '';
 
     $php_SApi_name = substr(php_sapi_name(), 0, 3);
 
@@ -122,7 +176,36 @@ class Response
 
     header('Content-Type: application/json', true);
 
-    header($protocol .' '. $http_status_code .' '. $http_status_message);
+    header($protocol .' '. $http_status_code);
   }
+
+
+  public static function getReportMessages()
+  {
+    return static::$reports;
+  }
+
+
+  /**
+   * Load response messages at App start
+   */
+  public static function loadReportMessages()
+  {
+    try {
+      $file_path = base_dir() . app()->config('response.reports') .'.php';
+
+      if(file_exists($file_path)){
+        $app_reports = require ( ''.$file_path.'' );
+
+        $sys_reports = Report::defaults();
+
+        static::$reports = array_merge( $sys_reports, $app_reports);
+      }
+    }
+    catch (Exception $e){
+      throw new FileNotFoundException("Reports", $file_path ?? '');
+    }
+  }
+
 
 }

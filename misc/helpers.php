@@ -1,8 +1,5 @@
 <?php
 
-use Orcses\PhpLib\Logger;
-use Orcses\PhpLib\Result;
-
 
 if (! function_exists('app')) {
   /**
@@ -15,6 +12,7 @@ if (! function_exists('app')) {
     return \Orcses\PhpLib\Application::instance();
   }
 }
+
 
 if (! function_exists('arr_get')) {
   /**
@@ -41,6 +39,7 @@ if (! function_exists('arr_get')) {
   }
 }
 
+
 if (! function_exists('auth')) {
   /**
    * Return the Auth instance
@@ -53,6 +52,7 @@ if (! function_exists('auth')) {
   }
 }
 
+
 if (! function_exists('base_dir')) {
   /**
    * Return the Application base directory
@@ -64,6 +64,7 @@ if (! function_exists('base_dir')) {
     return app()->baseDir();
   }
 }
+
 
 if (! function_exists('config')) {
   /**
@@ -87,6 +88,7 @@ if (! function_exists('config')) {
   }
 }
 
+
 if (! function_exists('dd')) {
   /**
    * Call pr() and die() the script
@@ -103,33 +105,22 @@ if (! function_exists('dd')) {
   }
 }
 
-if (! function_exists('real_dir')) {
-  /**
-   * Converts the directory path to the local OS format
-   * @param string $path
-   * @return string
-   */
-  function real_dir(string $path)
-  {
-    return str_replace('//', '/', $path);
 
-//    return str_replace('/', DIRECTORY_SEPARATOR, $path);
+if (! function_exists('error')) {
+  /**
+   * @param  string $report_key
+   * @param  int $code
+   * @param  array $replaces
+   * @return array
+   */
+  function error(string $report_key, $code, $replaces = [])
+  {
+    $code = $replaces ? [$code, $replaces] : $code;
+
+    return [$report_key, $code];
   }
 }
 
-if (! function_exists('real_url')) {
-  /**
-   * Converts the directory path to the http url format
-   * @param string $path
-   * @return string
-   */
-  function real_url(string $path)
-  {
-    $path = str_replace(DIRECTORY_SEPARATOR, '/', $path);
-
-    return str_replace('//', '/', $path);
-  }
-}
 
 if (! function_exists('env')) {
   /**
@@ -170,6 +161,7 @@ if (! function_exists('env')) {
   }
 }
 
+
 if (! function_exists('log_error')) {
   /**
    * Logs info
@@ -182,14 +174,17 @@ if (! function_exists('log_error')) {
   function log_error($message, $callback = [], $from_report = false)
   {
     if(is_array($message)){
-      $message = ($from_report) ? (Result::prepare($message)[0] ?? '') : safe_call($message);
+      $message = ($from_report)
+        ? (Orcses\PhpLib\Result::prepare($message)[0] ?? '')
+        : safe_call($message);
     }
 
-    Logger::log('error', $message);
+    \Orcses\PhpLib\Logger::log('error', $message);
 
     return safe_call($callback);
   }
 }
+
 
 if (! function_exists('pr')) {
   /**
@@ -205,7 +200,7 @@ if (! function_exists('pr')) {
     $allow = [
 //      'tmp' => '',
 //      'lgc' => '',
-//      'usr' => '',
+      'usr' => '',
 //      'alg' => '',
     ];
     if(!is_array($data) || ! array_intersect_key($allow, $data)) return;
@@ -225,6 +220,66 @@ if (! function_exists('pr')) {
     echo $newlines;
   }
 }
+
+
+if (! function_exists('real_dir')) {
+  /**
+   * Converts the directory path to the local OS format
+   * @param string $path
+   * @return string
+   */
+  function real_dir(string $path)
+  {
+    return str_replace('//', '/', $path);
+
+//    return str_replace('/', DIRECTORY_SEPARATOR, $path);
+  }
+}
+
+
+if (! function_exists('real_url')) {
+  /**
+   * Converts the directory path to the http url format
+   * @param string $path
+   * @return string
+   */
+  function real_url(string $path)
+  {
+    $path = str_replace(DIRECTORY_SEPARATOR, '/', $path);
+
+    return str_replace('//', '/', $path);
+  }
+}
+
+
+if (! function_exists('report')) {
+  /**
+   * Returns an instance of the Report class
+   * @return \Net\Report | \Orcses\PhpLib\Report
+   */
+  function report()
+  {
+    if(class_exists(\Net\Report::class)){
+      return \Net\Report::instance();
+    }
+
+    return \Orcses\PhpLib\Report::instance();
+  }
+}
+
+
+if (! function_exists('response')) {
+  /**
+   * Returns an instance of the Response class
+   * @param int $http_code
+   * @return \Orcses\PhpLib\Response
+   */
+  function response(int $http_code = 200)
+  {
+    return \Orcses\PhpLib\Response::instance($http_code);
+  }
+}
+
 
 if (! function_exists('requires')) {
   /**
@@ -250,6 +305,7 @@ if (! function_exists('requires')) {
     return $error;
   }
 }
+
 
 if (! function_exists('safe_call')) {
   /**
@@ -292,6 +348,33 @@ if (! function_exists('safe_call')) {
   }
 }
 
+
+if (! function_exists('success')) {
+  /**
+   * @param  string $report_key
+   * @param  array $info
+   * @param  array $replaces
+   * @param  int $index
+   * @throws \Orcses\PhpLib\Exceptions\InvalidArgumentException
+   * @return array
+   */
+  function success(string $report_key, array $info = [], array $replaces = null, int $index = null)
+  {
+    if( ! report()->has( $report_key )){
+      throw new \Orcses\PhpLib\Exceptions\InvalidArgumentException(
+        "Report Key '{$report_key}' does not exist"
+      );
+    }
+
+    $code = $index > 0 ? "0{$index}" : 0;
+
+    $code = $replaces ? [$code, $replaces] : $code;
+
+    return [$report_key, $code, (array) $info];
+  }
+}
+
+
 if (! function_exists('value')) {
   /**
    * Return the default value of the given value.
@@ -304,3 +387,4 @@ if (! function_exists('value')) {
     return $value instanceof Closure ? $value() : $value;
   }
 }
+

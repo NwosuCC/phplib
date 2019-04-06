@@ -5,11 +5,11 @@ namespace Orcses\PhpLib;
 
 class Result
 {
-  private static $reports;
+  protected static $reports = [];
 
-  private $result, $info;
+  protected $result, $info;
 
-  private $http_status_code, $response;
+  protected $http_status_code, $response;
 
 
   public function __construct(array $result = [], array $info = []){
@@ -19,22 +19,18 @@ class Result
   }
 
 
-  public function prepareAndSend($data) {
+  public function prepareAndSend($data)
+  {
     return $this->prepare($data)->composeResponse();
   }
 
 
-  /*public function sendPrepared(array $result, array $info) {
-    $this->result = $result;
-    $this->info = $info;
+  public static function prepare(array $result)
+  {
+    if( ! static::$reports){
+      static::$reports = Response::getReportMessages();
+    }
 
-    return $this->composeResponse();
-  }*/
-
-
-  public static function prepare(array $result){
-    global $_REPORTS;
-    static::$reports = $_REPORTS;
     $notice = [];
 
     if(count($result) < 2){
@@ -62,7 +58,8 @@ class Result
     if( ! $error_number){
       $result = static::$reports[$function]['success'];
 
-      if(!empty($message_index)){
+      if( ! empty($message_index)){
+        // replaces - success
         $result[1] = $result[1][$message_index];
       }
 
@@ -89,21 +86,18 @@ class Result
     }
 
     // Apply the $replaces on the stubs
-    if(!empty($replaces) and is_array($replaces)){
+    if( ! empty($replaces) and is_array($replaces)){
       foreach ($replaces as $find => $replace){
         $result[1] = str_replace('{'.$find.'}', $replace, $result[1]);
       }
     }
     
-    if(!empty($notice)){
+    if( ! empty($notice)){
       $result[1] = [$result[1], $notice];
     }
 
-    /*foreach ($info as $key => $value){
-      if(is_object($value)){
-        $info[ $key ] = (method_exists($value, 'toArray')) ? $value->toArray() : (array) $info;
-      }
-    }*/
+//    $regex = "/{[ ]*([^ {}]+)+[^{}]*}/";
+//    $info = preg_replace($regex, '', $info);
 
     return new static($result, $info);
   }

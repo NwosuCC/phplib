@@ -11,6 +11,8 @@ class JWToken
 {
   protected static $algorithm = ['HS256'];
 
+  protected static $error;
+
 
   protected static function key()
   {
@@ -65,9 +67,17 @@ class JWToken
   }
 
 
+  public static function error()
+  {
+    return static::$error ?: null;
+  }
+
+
   public static function verifyToken(string $token)
   {
     if(empty($token)){
+      static::$error = 'Supplied token is empty';
+
       return null;
     }
 
@@ -86,6 +96,8 @@ class JWToken
       $decoded = JWT::decode($token, $key, static::$algorithm);
     }
     catch (Exception $e) {
+      static::$error = $e->getMessage();
+
       return false;
     }
 

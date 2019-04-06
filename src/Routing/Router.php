@@ -4,12 +4,12 @@ namespace Orcses\PhpLib\Routing;
 
 
 use Exception;
+use Orcses\PhpLib\Exceptions\FileNotFoundException;
 use Orcses\PhpLib\Exceptions\InvalidArgumentException;
-use Orcses\PhpLib\Exceptions\Routes\DuplicateRouteNamesException;
 use Orcses\PhpLib\Exceptions\Routes\DuplicateRoutesException;
 use Orcses\PhpLib\Exceptions\Routes\MethodNotSupportedException;
+use Orcses\PhpLib\Exceptions\Routes\DuplicateRouteNamesException;
 use Orcses\PhpLib\Exceptions\Routes\RouteNotYetRegisteredException;
-use Orcses\PhpLib\Exceptions\Routes\RoutesFileNotFoundException;
 use Orcses\PhpLib\Utility\Arr;
 use Orcses\PhpLib\Utility\Str;
 
@@ -613,6 +613,8 @@ class Router
       }
     }
     catch (Exception $e){}
+
+    return $file_path ?? null;
   }
 
 
@@ -633,7 +635,7 @@ class Router
       foreach (static::$route_spaces as $namespace){
         static::$route_file = $namespace;
 
-        static::loadNamespaceRoutes();
+        $last_failed_file = static::loadNamespaceRoutes();
       }
 
       foreach (static::$groups as $id => [$route, $callback]){
@@ -654,7 +656,7 @@ class Router
       }
 
       if( ! static::$loaded){
-        throw new RoutesFileNotFoundException();
+        throw new FileNotFoundException("Routes", $last_failed_file ?? '');
       }
       elseif (static::$exceptions){
         static::throwExceptions();

@@ -15,12 +15,11 @@ final class Auth implements Modelable
 {
   protected $table = 'users';
 
-  const REPORT_KEY = 'access';
-
   const INVALID_CREDENTIALS = 1;
   const NOT_AUTHORIZED = 2;
   const PLEASE_CONTINUE = 3;
   const THROTTLE_DELAY = 6;
+  const INVALID_TOKEN = 7;
 
   protected static $throttle_delay = 15;
 
@@ -30,7 +29,7 @@ final class Auth implements Modelable
   protected $model;
 
   /** @var \Orcses\PhpLib\Models\Model $user */
-  protected $user;
+  protected $user, $bound = false;
 
   protected $id;
 
@@ -54,19 +53,34 @@ final class Auth implements Modelable
 
     $info = ['user' => self::user()->toArray()];
 
-    return [self::REPORT_KEY, [0, $replaces], $info];
+    return success( report()::ACCESS, $info, $replaces);
   }
 
 
-  public static function error($code)
+  public static function error($code, $replaces = [])
   {
-    return [self::REPORT_KEY, $code];
+    return error(report()::ACCESS, $code, $replaces);
   }
 
 
   public function getTable()
   {
     return $this->table;
+  }
+
+
+  /**
+   * @param  \Orcses\PhpLib\Models\Model $user
+   */
+  public function bind(Model $user)
+  {
+    if( ! $this->bound){
+      $this->model = $user->refresh();
+
+      $this->authenticate(['id' => self::auth()->id()]);
+
+      $this->bound = true;
+    }
   }
 
 
@@ -83,7 +97,7 @@ final class Auth implements Modelable
 
   public static function check(bool $log_out = false)
   {
-    if( !($auth = static::auth()->user) && $log_out){
+    if( ! ($auth = static::auth()->user) && $log_out){
 
       Request::abort( Auth::error(Auth::PLEASE_CONTINUE), true);
     }
@@ -154,6 +168,7 @@ final class Auth implements Modelable
   public static function verify(string $token)
   {
     if($verified = Token::verify($token)) {
+
       $id = array_shift( $verified['user_info'] );
 
       static::auth()->authenticate(['id' => $id]);
@@ -161,7 +176,9 @@ final class Auth implements Modelable
       if(self::user()){ return; }
     }
 
-    self::logout(Auth::PLEASE_CONTINUE);
+    $replaces = ['token_error' => Token::error()];
+
+    self::logout(Auth::INVALID_TOKEN, $replaces);
   }
 
 
@@ -193,32 +210,42 @@ final class Auth implements Modelable
     if( ! empty($where)){
       $where = array_merge($where, $where_active);
 
-      $this->setAuthUser($where, $password ?? null);
+//      $this->retrieveUser
+
+      static::$auth->user = static::$auth->id = null;
+
+      return self::check(true);
     }
+  }
+
+
+  protected function retrieveUser(array $where, string $password = null)
+  {
+    if( ! $result = $this->model->where($where)->first()){
+      return false;
+    }
+
+    if(isset($password)){
+      $hashed_password = $result->getAttribute('password');
+
+      if( ! password_verify($password, $hashed_password)){
+        return false;
+      }
+    }
+
+    return $this->setAuthUser($where, $password ?? null);
   }
 
 
   protected function setAuthUser(array $where, string $password = null)
   {
-    if($result = $this->model->where($where)->first()){
+//    $this->user = $result;
+    $this->id = $this->user->getKey();
 
-      if($password){
-        $hashed_password = $result->getAttribute('password');
+    // Set authenticated user one time
+    static::$auth = $this;
 
-        if( ! password_verify($password, $hashed_password)){
-          return;
-        }
-      }
-
-      $this->user = $result;
-      $this->id = $this->user->getKey();
-      pr(['dbc' => __FUNCTION__, '$this->user' => $this->user]);
-
-      // Set authenticated user one time
-      static::$auth = $this;
-
-      static::auth()->user->removeAttribute('password');
-    }
+    static::auth()->user->removeAttribute('password');
   }
 
 
@@ -243,10 +270,10 @@ final class Auth implements Modelable
   }
 
 
-  public static function logout($code){
+  public static function logout($code, $replaces = []){
     self::updateStats( (int) $code === Auth::THROTTLE_DELAY );
 
-    Response::get( Auth::error($code) )->send();
+    Response::get( Auth::error($code, $replaces) )->send();
   }
 
 

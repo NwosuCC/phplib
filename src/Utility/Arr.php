@@ -71,8 +71,11 @@ class Arr
     foreach($keys as $i => $value){
       $new_key = $keys[ $i ];
       $old_key = $old_keys[ $i ];
+      pr(['usr' => __FUNCTION__, '$keys' => $keys, '$i' => $i, '$new_key' => $new_key, '$old_key' => $old_key, '$array' => $array]);
 
-      $assoc_array_values[ $new_key ] = $index_array_values[] = $array[ $old_key ];
+//      $assoc_array_values[ $new_key ] = $index_array_values[] = $array[ $old_key ];
+      $assoc_array_values[ $new_key ] = $array[ $old_key ];
+      $index_array_values[] = $array[ $old_key ];
     }
 
     return ($assoc) ? $assoc_array_values : $index_array_values;

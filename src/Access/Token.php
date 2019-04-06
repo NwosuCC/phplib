@@ -8,6 +8,8 @@ use Orcses\PhpLib\Cache\DatabaseCache;
 
 class Token
 {
+  protected static $error;
+
   /**
    * Retrieves a new token
    * @param array  $user_info The user info to embed in the token
@@ -39,11 +41,20 @@ class Token
       $user_info = explode('.', $user_info);
 
       if($isValidToken = DatabaseCache::get($key)){
+
         return compact('token', 'user_info', 'expiry');
       }
     }
 
+    static::$error = JWToken::error();
+
     return [];
+  }
+
+
+  public static function error()
+  {
+    return static::$error ?: null;
   }
 
 

@@ -107,6 +107,12 @@ abstract class Model
   }
 
 
+  public function find(string $id)
+  {
+    return $this->where([ $this->getKeyName() => $id ])->first();
+  }
+
+
   /**
    * Used to hydrate rows fetched from database into model instances
    * @param array $attributes
@@ -552,8 +558,7 @@ abstract class Model
   public static function all() {
     ($model = static::instance())
       ->query()
-      ->whereRaw(['query' => '1', 'values' => []]) // WHERE 1
-      ->select();
+      ->whereRaw(['query' => '1', 'values' => []]);
 
     return $model->get();
   }
@@ -736,8 +741,8 @@ abstract class Model
     $this->updateTimestamps();
 
     // ToDo: remove dryRun
-    return $this->query()->dryRun()->asTransaction(function (){
-//    return $this->db()->asTransaction(function (){
+//    return $this->query()->dryRun()->asTransaction(function (){
+    return $this->query()->asTransaction(function (){
 
       $insert = $this->query()->insert( $this->attributes );
 
@@ -768,7 +773,8 @@ abstract class Model
       if($update_values = $this->getChanges()){
 
         // ToDo: remove dryRun
-        return $this->query()->dryRun()->asTransaction(function () use($update_values){
+//        return $this->query()->dryRun()->asTransaction(function () use($update_values){
+        return $this->query()->asTransaction(function () use($update_values){
 
           return $this->query()->update( $update_values );
 

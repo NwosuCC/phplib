@@ -219,7 +219,7 @@ class Request
       $error_code = ['App', 2];
     }
 
-    ($log_out && $error_code[0] === Auth::REPORT_KEY)
+    ($log_out && $error_code[0] === report()::ACCESS)
 
       ? Auth::logout( $error_code[1] )
 

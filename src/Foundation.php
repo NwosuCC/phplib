@@ -146,8 +146,9 @@ class Foundation
   protected function aliases(){
     return [
       'Router' => \Orcses\PhpLib\Routing\Router::class,
-      'Controller' => \Orcses\PhpLib\Routing\Controller::class,
+      'Response' => \Orcses\PhpLib\Response::class,
       'Validator' => \Orcses\PhpLib\Validator::class,
+      'Controller' => \Orcses\PhpLib\Routing\Controller::class,
 //      'Auth' => \Orcses\PhpLib\Access\Auth::class,
 //      'Request' => \Orcses\PhpLib\Request::class,
     ];

@@ -923,7 +923,8 @@ class MysqlQuery extends Query {
   {
     $this->caller = $this->caller() ?: __FUNCTION__;
 
-    $this->where = 'WHERE ' . trim($this->setQueryValues($values, $query));
+    $this->where = trim( $this->setQueryValues($values, $query));
+    pr(['usr' => __FUNCTION__, 'where' => $this->where]);
 
     return $this;
   }

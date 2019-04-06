@@ -2,12 +2,12 @@
 
 namespace Orcses\PhpLib;
 
-use Orcses\PhpLib\Middleware\Middleware;
 use RuntimeException;
 use Orcses\PhpLib\Utility\Arr;
 use Orcses\PhpLib\Access\Auth;
 use Orcses\PhpLib\Models\Model;
 use Orcses\PhpLib\Routing\Router;
+use Orcses\PhpLib\Middleware\Middleware;
 use Orcses\PhpLib\Exceptions\InvalidArgumentException;
 
 
@@ -25,28 +25,21 @@ final class Application extends Foundation
 
 
   /**
-   * Returns same App instance (singleton)
-   * This is the only way to start the App since App::__construct() is private
-   * @param string $base_dir
-   * @return $this
-   */
-  public static function instance(string $base_dir = '')
-  {
-    if( ! static::$instance) {
-      static::$instance = new static($base_dir);
-    }
-
-    return static::$instance;
-  }
-
-
-  /**
    * To maintain just one instance, use App::instance() to obtain as singleton
    * @param string $base_dir
    */
   protected function __construct($base_dir)
   {
+    if( ! static::$instance) {
+      static::$instance = $this;
+    }
+
+    pr(['usr' => __FUNCTION__, '$base_dir' => $base_dir, 'static::$instance' => static::$instance]);
+
     parent::__construct($base_dir);
+
+    // Load App and System reports
+    Response::loadReportMessages();
 
     $this->set_default_timezone();
 
@@ -59,6 +52,22 @@ final class Application extends Foundation
 //    $this->router = $this->make(\Orcses\PhpLib\Routing\Router::class);
 
     $this->controller = $this->make('Controller');
+  }
+
+
+  /**
+   * Returns same App instance (singleton)
+   * This is the only way to start the App since App::__construct() is private
+   * @param string $base_dir
+   * @return $this
+   */
+  public static function instance(string $base_dir = '')
+  {
+    if( ! static::$instance) {
+      static::$instance = new static($base_dir);
+    }
+
+    return static::$instance;
   }
 
 
@@ -155,7 +164,19 @@ final class Application extends Foundation
 
     if($controller instanceof \Closure){
 
-      $result = $controller->call($this, $arguments);
+      $output = $controller->call($this, $arguments);
+      pr(['usr' => __FUNCTION__, '$output 000' => $output, '$output class' => is_object($output) ? get_class($output) : '']);
+
+      if( is_a($output,Response::class)){
+        // Already packaged; ready to send
+        return $output;
+      }
+      elseif( ! is_a($output,Result::class)){
+
+        $result = Result::prepare( $output );
+      }
+      pr(['usr' => __FUNCTION__, '$result 333' => $result]);
+
     }
     else {
       [$controller, $method] = $this->controller->getClassAndMethod($controller);
@@ -213,7 +234,8 @@ final class Application extends Foundation
 
       $result = Result::prepare($output);
     }
-//    dd(['usr' => __FUNCTION__, '$result' => $result]);
+
+    pr(['usr' => __FUNCTION__, '$result' => $result]);
 
     // Return packaged response to App index for dispatch
     return Response::package( $result );
