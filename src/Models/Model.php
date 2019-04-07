@@ -103,7 +103,7 @@ abstract class Model
    */
   public static function newFromObj(Model $obj, string $id)
   {
-    return $obj->where([ $obj->getKeyName() => $id ])->first();
+    return $obj->find( $id );
   }
 
 
@@ -131,6 +131,7 @@ abstract class Model
     $model->stripHidden();
 
     $model->single = true;
+    pr(['usr' => __FUNCTION__, '$model' => get_class($model), 'attributes' => $model->attributes]);
 
     return $model;
   }
@@ -220,9 +221,13 @@ abstract class Model
   }
 
 
-  public function getAttributes()
+  public function getAttributes(array $columns = [])
   {
-    return $this->attributes;
+    $available_columns = Arr::getExistingKeys($this->attributes, $columns);
+
+    return $columns
+      ? Arr::pickOnly($this->attributes, array_keys($available_columns))
+      : $this->attributes;
   }
 
 
@@ -283,6 +288,7 @@ abstract class Model
         $this->attributes[ $append ] = $this->{$method_name}();
       }
     }
+    pr(['usr' => __FUNCTION__, '$model 111' => get_class($this), 'appends' => $this->appends]);
   }
 
 
@@ -807,15 +813,7 @@ abstract class Model
 
 
   public function save(){
-    $result = $this->exists()
-      ? $this->performUpdate()
-      : $this->setNewStringId()->performInsert();
-
-    if($result){
-      $this->attributes = $this->castToDefaultType( $result );
-    }
-
-    return !empty($result);
+    return $this->exists() ? $this->performUpdate() : $this->setNewStringId()->performInsert();
   }
 
 

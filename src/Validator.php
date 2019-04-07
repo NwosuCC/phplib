@@ -24,7 +24,7 @@ class Validator implements HandlesErrors
     'alphanumeric' => [],
     'alphanumeric_space' => [],
     'alphanumeric_chars' => [],
-    'email' => ['email'],
+    'email' => [],
     'confirmed' => [],
     'length' => [],
     'min' => [],
@@ -51,15 +51,16 @@ class Validator implements HandlesErrors
   protected $failed_rule, $errors = [], $replaces = [];
 
   protected static $messages = [
-    'required' => '{field} is required',
     'alphanumeric' => "{field} may contain only letters and numbers",
-    'alphanumeric_space' => "{field} may contain only letters and numbers {more_info}",
     'alphanumeric_chars' => "{field} may contain only letters and numbers {more_info}",
-    'password' => '{field} must have at least {more_info}',
+    'alphanumeric_space' => "{field} may contain only letters and numbers {more_info}",
     'confirmed' => '{field} confirmation: Entries do not match',
+    'email' => 'Valid {field} is required.',
     'length' => "{field} must be exactly {length} characters long",
-    'min' => "{field} must not be less than {min} characters long",
     'max' => "{field} must not be more than {max} characters long",
+    'min' => "{field} must not be less than {min} characters long",
+    'password' => '{field} must have at least {more_info}',
+    'required' => '{field} is required',
   ];
 
 
@@ -96,6 +97,7 @@ class Validator implements HandlesErrors
     }
 
     $field = isset($validator['as']) ? $validator['as'] : null;
+    pr(['usr' => __FUNCTION__, '$key' => $key, '$validator' => $validator, '$rules' => $rules, '$field' => $field]);
 
     return [$rules, $field];
   }
@@ -179,16 +181,6 @@ class Validator implements HandlesErrors
   }
 
 
-  public function required($value)
-  {
-    $value = trim($value);
-
-    $this->failed_rule = ($value === '');
-
-    return ( ! $this->failed_rule) ? $value : null;
-  }
-
-
   protected static function escape_chars($chars){
     $escaped_chars = [
       '\\', '/', '.', '+', '-', '*', '?', '[', ']', '(', ')', '{', '}', ':'
@@ -262,7 +254,18 @@ class Validator implements HandlesErrors
   }
 
 
-  public function alphanumeric_chars($string, $chars = []){
+  /*==================================================================================
+   |   V A L I D A T I O N   F U N C T I O N S  -  Arranged in alphabetical order
+   *------------------------------------------------------------------------------ */
+
+  public function alphanumeric($string)
+  {
+    return $this->alphanumeric_chars($string);
+  }
+
+
+  public function alphanumeric_chars($string, $chars = [])
+  {
     // Unicode for all characters support
     if(is_array($esc_chars = static::escape_chars($chars))){
       $esc_chars  = implode(',', $esc_chars);
@@ -287,18 +290,27 @@ class Validator implements HandlesErrors
     return ($valid) ? $string : null;
   }
 
-  public function alphanumeric($string){
-    return $this->alphanumeric_chars($string);
-  }
 
-  public function alphanumeric_space($string){
+  public function alphanumeric_space($string)
+  {
     $allowedChars = [' '];
 
     return $this->alphanumeric_chars($string, $allowedChars);
   }
 
 
-  public function contains(string $string, $arguments = []){
+  public function confirmed($value, $confirm_value)
+  {
+    if(empty($value) or empty($confirm_value) or $value !== $confirm_value){
+      $this->failed_rule = true;
+    }
+
+    return ( ! $this->failed_rule) ? $value : null;
+  }
+
+
+  public function contains(string $string, $arguments = [])
+  {
     $replaces = [];
 
     foreach($arguments as $argument){
@@ -340,16 +352,60 @@ class Validator implements HandlesErrors
   }
 
 
-  public function confirmed($value, $confirm_value){
-    if(empty($value) or empty($confirm_value) or $value !== $confirm_value){
-      $this->failed_rule = true;
+  public function email($string)
+  {
+    $allowedChars = ['_', '@', '.'];
+
+    if( ! $string = $this->alphanumeric_chars($string, $allowedChars)){
+      return null;
     }
 
-    return ( ! $this->failed_rule) ? $value : null;
+    if(filter_var($string, FILTER_VALIDATE_EMAIL) === false){
+      return null;
+    }
+
+    return $string;
   }
 
 
-  public function password($password, $arguments = []){
+  public function length($string, int $length)
+  {
+    $string = trim($string);
+
+    if($this->failed_rule = strlen($string) !== $length){
+      $this->replaces['length'] = $length;
+    }
+
+    return ( ! $this->failed_rule) ? $string : null;
+  }
+
+
+  public function max($string, int $max)
+  {
+    $string = trim($string);
+
+    if($this->failed_rule = strlen($string) > $max){
+      $this->replaces['max'] = $max;
+    }
+
+    return ( ! $this->failed_rule) ? $string : null;
+  }
+
+
+  public function min($string, int $min)
+  {
+    $string = trim($string);
+
+    if($this->failed_rule = strlen($string) < $min){
+      $this->replaces['min'] = $min;
+    }
+
+    return ( ! $this->failed_rule) ? $string : null;
+  }
+
+
+  public function password($password, $arguments = [])
+  {
     $replaces = $this->contains($password, $arguments);
 
     if(empty($replaces)) {
@@ -375,36 +431,13 @@ class Validator implements HandlesErrors
   }
 
 
-  public function length($string, int $length){
-    $string = trim($string);
+  public function required($value)
+  {
+    $value = trim($value);
 
-    if($this->failed_rule = strlen($string) !== $length){
-      $this->replaces['length'] = $length;
-    }
+    $this->failed_rule = ($value === '');
 
-    return ( ! $this->failed_rule) ? $string : null;
-  }
-
-
-  public function min($string, int $min){
-    $string = trim($string);
-
-    if($this->failed_rule = strlen($string) < $min){
-      $this->replaces['min'] = $min;
-    }
-
-    return ( ! $this->failed_rule) ? $string : null;
-  }
-
-
-  public function max($string, int $max){
-    $string = trim($string);
-
-    if($this->failed_rule = strlen($string) > $max){
-      $this->replaces['max'] = $max;
-    }
-
-    return ( ! $this->failed_rule) ? $string : null;
+    return ( ! $this->failed_rule) ? $value : null;
   }
 
 

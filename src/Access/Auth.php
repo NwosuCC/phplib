@@ -4,29 +4,16 @@ namespace Orcses\PhpLib\Access;
 
 
 use Orcses\PhpLib\Request;
-use Orcses\PhpLib\Response;
-use Orcses\PhpLib\Models\Model;
 use Orcses\PhpLib\Utility\Dates;
 use Orcses\PhpLib\Routing\Router;
-use Orcses\PhpLib\Interfaces\Modelable;
+use Orcses\PhpLib\Interfaces\Auth\Authenticatable;
 
 
-final class Auth implements Modelable
+final class Auth
 {
-  protected $table = 'users';
-
-  const INVALID_CREDENTIALS = 1;
-  const NOT_AUTHORIZED = 2;
-  const PLEASE_CONTINUE = 3;
-  const THROTTLE_DELAY = 6;
-  const INVALID_TOKEN = 7;
-
   protected static $throttle_delay = 15;
 
-  protected static $auth, $token_fields = [];
-
-  /** @var \Orcses\Phplib\Models\PseudoModel $model */
-  protected $model;
+  protected static $auth;
 
   /** @var \Orcses\PhpLib\Models\Model $user */
   protected $user, $bound = false;
@@ -34,23 +21,24 @@ final class Auth implements Modelable
   protected $id;
 
 
-  protected function __construct()
+  public function __construct(Authenticatable $user)
   {
-    $this->model = Model::pseudo($this);
+    pr(['usr' => __FUNCTION__, 'AuthUser 000' => get_class($user), 'time' => time()]);
 
-    static::$auth = $this;
+    if( ! static::$auth){
+      $this->user = $user;
+
+      static::$auth = $this;
+    }
   }
 
 
   /**
+   * @param array $replaces
    * @return array
    */
-  public static function success()
+  public static function success($replaces = [])
   {
-    $replaces = [
-      'name' => self::user()->name
-    ];
-
     $info = ['user' => self::user()->toArray()];
 
     return success( report()::ACCESS, $info, $replaces);
@@ -59,52 +47,15 @@ final class Auth implements Modelable
 
   public static function error($code, $replaces = [])
   {
-    return error(report()::ACCESS, $code, $replaces);
-  }
-
-
-  public function getTable()
-  {
-    return $this->table;
-  }
-
-
-  /**
-   * @param  \Orcses\PhpLib\Models\Model $user
-   */
-  public function bind(Model $user)
-  {
-    if( ! $this->bound){
-      $this->model = $user->refresh();
-
-      $this->authenticate(['id' => self::auth()->id()]);
-
-      $this->bound = true;
-    }
+    return error( report()::ACCESS, $code, $replaces );
   }
 
 
   /** @return $this */
   public static final function auth()
   {
-    if( ! static::$auth){
-      new static();
-    }
-
     return static::$auth;
   }
-
-
-  public static function check(bool $log_out = false)
-  {
-    if( ! ($auth = static::auth()->user) && $log_out){
-
-      Request::abort( Auth::error(Auth::PLEASE_CONTINUE), true);
-    }
-
-    return !! $auth;
-  }
-
 
   public static function user()
   {
@@ -118,46 +69,71 @@ final class Auth implements Modelable
   }
 
 
+  public static function check()
+  {
+    return !! static::auth()->user();
+  }
+
+
   protected static function set(string $key, $value)
   {
-    if(self::id()){
+    if(self::check()){
       self::auth()->user->imposeAttribute($key, $value);
     }
+    pr(['usr' => __FUNCTION__, 'check()' => self::check(), '$key'=>$key, '$value'=>substr($value, 0, 6), 'user token' => self::auth()->user->token]);
   }
 
 
-  public static function setTokenFields(array $token_fields)
-  {
-    self::$token_fields = $token_fields;
-  }
-
-
-  public static function throttleDelay()
+  protected static function throttleDelay()
   {
     return static::$throttle_delay;
   }
 
 
-  public static function attempt($vars)
+  public static function reset()
+  {
+    static::$auth->user = static::$auth->id = null;
+
+    return false;
+  }
+
+
+  /**
+   * Called, for example, from LoginController::class
+   * @param array $vars
+   * @return bool
+   */
+  public static function attempt(array $vars)
   {
     Router::setLoginRouteName( Request::currentRouteParams() );
 
-    static::auth()->authenticate($vars);
+    $auth = static::auth();
+
+    [$where, $password] = $auth->user->retrieveByCredentials($vars);
+
+    $auth->retrieveUser($where, $password);
 
     if( self::user()){
+
       self::updateStats();
 
-      if( ! $token = Token::generate( static::getUserInfo() )) {
-        // User token not set. Abort and try again
-        Request::abort( Auth::error(Auth::PLEASE_CONTINUE), true);
-      }
+      // If User class uses trait 'HasApiToken'
+      if(method_exists(static::class, 'generate')){
 
-      self::set('token', $token);
+        if( ! $token = call_user_func([static::class, 'generate'])){
+          return static::reset();
+        }
+
+        self::set('token', $token);
+      }
+      pr(['usr' => __FUNCTION__, 'set $token' => $token??'']);
+
     }
     else{
-      $error = Auth::error(self::INVALID_CREDENTIALS);
+//      $error = Auth::error(self::INVALID_CREDENTIALS);
+      $error = [];
 
-      // Prevent rapid multiple Login attempts
+      // [Read from 'Settings'] Prevent rapid multiple Login attempts
       Request::throttle( Router::getLoginRouteName(), $error);
     }
 
@@ -165,121 +141,77 @@ final class Auth implements Modelable
   }
 
 
+  /**
+   * Called, for example, from \Middleware\Auth\Api::class
+   * @param string $token
+   * @return bool
+   */
   public static function verify(string $token)
   {
-    if($verified = Token::verify($token)) {
+    $auth = static::auth();
 
-      $id = array_shift( $verified['user_info'] );
+    $where = $auth->user->retrieveByToken($token);
 
-      static::auth()->authenticate(['id' => $id]);
+    $auth->retrieveUser($where);
+    pr(['usr' => __FUNCTION__, '$where' => $where, 'user' => self::user()]);
 
-      if(self::user()){ return; }
-    }
-
-    $replaces = ['token_error' => Token::error()];
-
-    self::logout(Auth::INVALID_TOKEN, $replaces);
-  }
-
-
-  protected function authenticate($vars = [])
-  {
-    $where_active = [
-      'status' => ['BETWEEN', 1, 2],
-      'timeout|b' => 'timeout <= floor((unix_timestamp() - unix_timestamp(last_login)) / 60)'
-    ];
-
-    if($user = $vars['email'] ?? $vars['username'] ?? null){
-      // Login:
-      $password = $vars['password'];
-
-      $where = [
-        'user|a' => [
-          "email" => $user,
-          'un|o'=> [
-            "username" => $user,
-          ],
-        ]
-      ];
-    }
-    elseif($id = $vars['id'] ?? null){
-      // Token:
-      $where = [$this->model->getKeyName() => $id];
-    }
-
-    if( ! empty($where)){
-      $where = array_merge($where, $where_active);
-
-//      $this->retrieveUser
-
-      static::$auth->user = static::$auth->id = null;
-
-      return self::check(true);
-    }
+    return !empty(self::user());
   }
 
 
   protected function retrieveUser(array $where, string $password = null)
   {
-    if( ! $result = $this->model->where($where)->first()){
+    if( ! $user = $this->user->where($where)->first()){
       return false;
     }
 
-    if(isset($password)){
-      $hashed_password = $result->getAttribute('password');
+    if( ! is_null($password)){
+      $hashed_password = $user->getAttribute('password');
 
       if( ! password_verify($password, $hashed_password)){
         return false;
       }
     }
 
-    return $this->setAuthUser($where, $password ?? null);
+    return $this->setAuthUser($user);
   }
 
 
-  protected function setAuthUser(array $where, string $password = null)
+  protected function setAuthUser(Authenticatable $user)
   {
-//    $this->user = $result;
+    $this->user = $user;
+
     $this->id = $this->user->getKey();
+
+    $this->user->removeAttribute('password');
 
     // Set authenticated user one time
     static::$auth = $this;
+    pr(['usr' => __FUNCTION__, 'AuthUser 111' => get_class($this->user), 'time' => time()]);
 
-    static::auth()->user->removeAttribute('password');
+    return true;
   }
 
 
-  protected static function getUserInfo()
+  public static function logout(bool $restrain = false)
   {
-    $user_info = [];
+    self::updateStats( $restrain );
 
-    foreach(self::$token_fields as $field) {
-      $user_info[] = self::user()->getAttribute( $field );
+    // unset session
+
+    // If User class uses trait 'HasApiToken', expire token
+    if(method_exists(static::class, 'expireToken')){
+
+      call_user_func([static::class, 'expireToken']);
     }
-
-    if( ! $user_info){
-      $user_info = [
-        self::user()->{'email'} ?? self::user()->{'username'} ?? ''
-      ];
-    }
-
-    // Add 'id' to be used internally for token verification
-    array_unshift( $user_info, self::id() );
-
-    return $user_info;
   }
 
 
-  public static function logout($code, $replaces = []){
-    self::updateStats( (int) $code === Auth::THROTTLE_DELAY );
-
-    Response::get( Auth::error($code, $replaces) )->send();
-  }
-
-
-  // ToDo: refactor to make generic, else, move to outer App level
-  // If $restrain is true, sets duration (minutes) before a new login attempt is allowed from this User
-  protected static function updateStats($restrain = false)
+  /**
+   * @param bool $restrain If true, sets duration (minutes) before a new login attempt is accepted from this User
+   * @return bool
+   */
+  protected static function updateStats(bool $restrain = false)
   {
     if( ! self::id()) {
       return false;
@@ -287,7 +219,7 @@ final class Auth implements Modelable
 
     $update_values = [
       'last_login' => Dates::now(),
-      'timeout' => $restrain ? intval( static::$throttle_delay ) : 0
+      'delay_login' => $restrain ? intval( static::$throttle_delay ) : 0
     ];
 
     return self::user()->update($update_values);

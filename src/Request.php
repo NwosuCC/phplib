@@ -62,11 +62,11 @@ class Request
 
   /**
    * Bind this current Request state to the Container, to be served in subsequent resolve() calls
-   * @param Container $container
    */
-  public function pinCurrentState(Container $container)
+  public function pinCurrentState()
   {
-    $container->set(static::class, $this);
+    pr(['usr' => __FUNCTION__, 'in[ut' => $this->input()]);
+    app()->pin(static::class, $this);
   }
 
 
@@ -120,6 +120,14 @@ class Request
   public function only(array $fields, bool $assoc = true)
   {
     return Arr::pickOnly($this->input(), $fields, $assoc);
+  }
+
+
+  public function seek(array $fields)
+  {
+    $available_fields = Arr::getExistingKeys($input = $this->input(), $fields);
+
+    return Arr::pickOnly($input, array_keys($available_fields));
   }
 
 
@@ -181,7 +189,7 @@ class Request
   {
     if($errors = $this->validator()->make( $rules )->validate( $this )){
 
-      $this->errors = ['validation', 1, $errors];
+      $this->errors = [report()::VALIDATION, 1, $errors];
     }
 
     $input = $this->input();
@@ -270,11 +278,12 @@ class Request
 
       }
       else {
-        $replaces = [
-          'minutes' => Auth::throttleDelay()
-        ];
+        // ToDo: refactor
+//        $replaces = [
+//          'minutes' => Auth::throttleDelay()
+//        ];
 
-        Request::abort( Auth::error([Auth::THROTTLE_DELAY, $replaces]), true );
+//        Request::abort( Auth::error([Auth::THROTTLE_DELAY, $replaces]), true );
       }
     }
 

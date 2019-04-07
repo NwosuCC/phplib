@@ -63,7 +63,9 @@ class JWToken
      */
     $token = JWT::encode($payload, $key, $algorithm, $public_key_id);
 
-    return [$private_key_id, $token, $expiry];
+    return [
+      'key' => $private_key_id, 'value' => $token, 'expiry' => $expiry
+    ];
   }
 
 
@@ -108,7 +110,13 @@ class JWToken
 
     list($private_key_id, $public_key_id, $expiry) = static::keyId($decoded_array);
 
-    return $public_key_id ? [$private_key_id, $token, $expiry, $user_info] : null;
+    if( ! $public_key_id){
+      return null;
+    }
+
+    return [
+      'key' => $private_key_id, 'value' => $token, 'expiry' => $expiry, 'data' => $user_info
+    ];
   }
 
 }

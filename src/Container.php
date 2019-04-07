@@ -12,6 +12,8 @@ class Container
   /** @var array */
   protected $instances = [];
 
+  protected $resolved = [];
+
 
   /**
    * @param      $abstract
@@ -23,7 +25,25 @@ class Container
       $concrete = $abstract;
     }
 
-    $this->instances[$abstract] = $concrete;
+    $this->instances[ $abstract ] = $concrete;
+//    pr(['usr' => __FUNCTION__, '000 $concrete' => $concrete, '$abstract' => $abstract, 'instances' => $this->instances]);
+  }
+
+
+  /**
+   * Returns the concrete of the supplied abstract
+   * @param       $abstract
+   * @return mixed
+   */
+  public function get($abstract)
+  {
+//    pr(['usr' => __FUNCTION__, '000 $abstract' => $abstract, 'exists' => array_key_exists($abstract, $this->instances)]);
+    if ( ! array_key_exists($abstract, $this->instances)) {
+
+      $this->set($abstract);
+    }
+
+    return $this->instances[ $abstract ];
   }
 
 
@@ -33,16 +53,34 @@ class Container
    * @param array $parameters
    * @return mixed
    */
-  public function get($abstract, $parameters = [])
+  public function make($abstract, $parameters = [])
   {
-    if ( ! array_key_exists($abstract, $this->instances)) {
+    if ( ! array_key_exists($abstract, $this->resolved)) {
 
-      $concrete = $this->resolve( $abstract, $parameters );
+      if($concrete = $this->resolve( $this->get($abstract), $parameters )){
+
+        $this->resolved[ $abstract ] = $concrete;
+      }
 
       $this->set($abstract, $concrete);
     }
+//    pr(['usr' => __FUNCTION__, '000 $abstract' => $abstract, '$concrete' => get_class($this->resolved[ $abstract ])]);
 
-    return $this->instances[ $abstract ];
+    return $this->resolved[ $abstract ];
+  }
+
+
+  /**
+   * Pins a resolved concrete instance to the abstract
+   * @param       $abstract
+   * @param       $concrete
+   * @return mixed
+   */
+  public function pinResolved($abstract, $concrete)
+  {
+    $this->resolved[ $abstract ] = $concrete;
+
+    return $this->resolved[ $abstract ];
   }
 
 
@@ -55,21 +93,25 @@ class Container
    * @return mixed|object
    * @throws Exception
    */
-  public function resolve($concrete, $parameters)
+  protected function resolve($concrete, $parameters)
   {
+//    pr(['usr' => __FUNCTION__, '000 $concrete' => $concrete, '$parameters' => $parameters]);
     if ($concrete instanceof Closure) {
+//      pr(['usr' => __FUNCTION__, 'is Closure $concrete' => $concrete]);
       return $concrete($this, $parameters);
     }
 
     $reflector = new ReflectionClass($concrete);
+//    pr(['usr' => __FUNCTION__, '$reflector' => $reflector, 'isInstantiable' => $reflector->isInstantiable()]);
 
     // check if class is instantiable
-    if (!$reflector->isInstantiable()) {
+    if ( ! $reflector->isInstantiable()) {
       throw new Exception("Class {$concrete} is not instantiable");
     }
 
     // get class constructor
     $constructor = $reflector->getConstructor();
+//    pr(['usr' => __FUNCTION__, '$constructor' => $constructor]);
 
     if (is_null($constructor)) {
       // get new instance from class
@@ -78,10 +120,11 @@ class Container
 
     // get constructor params
     $parameters = $constructor->getParameters();
-//    pr(['$parameters', $parameters]);
+//    pr(['usr' => __FUNCTION__, '$parameters' => $parameters]);
 
     $dependencies = $this->getDependencies($parameters);
 //    pr(['$dependencies', $dependencies]);
+//    pr(['usr' => __FUNCTION__, '$dependencies' => $dependencies]);
 
     // get new instance with dependencies resolved
     return $reflector->newInstanceArgs($dependencies);
@@ -169,7 +212,7 @@ class Container
       }
       else {
         // get dependency resolved
-        $dependencies[ $parameter->getName() ] = $this->get($dependency->name);
+        $dependencies[ $parameter->getName() ] = $this->make($dependency->name);
       }
     }
 

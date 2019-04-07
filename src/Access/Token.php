@@ -36,13 +36,11 @@ class Token
   {
     if($verified = JWToken::verifyToken($token)) {
 
-      [$key, $token, $expiry, $user_info] = $verified;
-
-      $user_info = explode('.', $user_info);
+      [$key, $token, $expiry, $id] = $verified;
 
       if($isValidToken = DatabaseCache::get($key)){
 
-        return compact('token', 'user_info', 'expiry');
+        return compact('token', 'id', 'expiry');
       }
     }
 

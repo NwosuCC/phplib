@@ -12,7 +12,11 @@ use Orcses\PhpLib\Exceptions\ConfigurationFileNotFoundException;
 
 class Foundation
 {
-  protected $container, $facades = [];
+  protected $container;
+
+  protected $providers = [];
+
+  protected $facades = [];
 
   protected $booted = false;
 
@@ -43,6 +47,9 @@ class Foundation
       $this->importEnvironmentVariables();
 
       $this->loadConfigurations();
+
+      // ToDo: implement ServiceProvider->boot()
+      $this->registerServiceProviders();
 
       $this->initializeBaseClasses();
     }
@@ -93,7 +100,41 @@ class Foundation
   }
 
 
-  public function make($class_name){
+  protected function registerServiceProviders()
+  {
+    try {
+
+      if($providers = require ( $this->baseDir() . '/config/providers.php'.'' )){
+
+        foreach ($providers as $class_name){
+
+          $provider_class = $this->make( $class_name );
+
+          $provider_class->register();
+
+          $this->providers[ $class_name ] = $provider_class;
+        }
+      }
+
+    }
+    catch (Exception $e){}
+  }
+
+
+  public function pin($abstract, $concrete)
+  {
+    $this->container->pinResolved( $abstract, $concrete );
+  }
+
+
+  public function bind($abstract, $concrete)
+  {
+    $this->container->set( $abstract, $concrete );
+  }
+
+
+  public function make($class_name)
+  {
     if(array_key_exists($class_name, $this->facades)){
       return $this->facades[ $class_name ];
     }
@@ -106,13 +147,15 @@ class Foundation
   public function build(string $class_name)
   {
     try {
-      return $this->container->get( $class_name );
+      return $this->container->make( $class_name );
     }
     catch (Error $e){}
     catch (Exception $e){}
 
     if( ! empty($e)){
-      dd('build Exception for ', $class_name, $e->getMessage());
+      // --test ToDo: remove this
+      if(app()::isLocal()){ dd('build Exception for ', $class_name, $e->getMessage()); }
+
       throw new ClassNotFoundException( $class_name );
     }
   }
@@ -149,8 +192,9 @@ class Foundation
       'Response' => \Orcses\PhpLib\Response::class,
       'Validator' => \Orcses\PhpLib\Validator::class,
       'Controller' => \Orcses\PhpLib\Routing\Controller::class,
-//      'Auth' => \Orcses\PhpLib\Access\Auth::class,
-//      'Request' => \Orcses\PhpLib\Request::class,
+      'Authenticatable' => \Orcses\PhpLib\Interfaces\Auth\Authenticatable::class,
+      'Auth' => \Orcses\PhpLib\Access\Auth::class,
+      'Request' => \Orcses\PhpLib\Request::class,
     ];
   }
 

@@ -34,7 +34,7 @@ final class Application extends Foundation
       static::$instance = $this;
     }
 
-    pr(['usr' => __FUNCTION__, '$base_dir' => $base_dir, 'static::$instance' => static::$instance]);
+    pr(['usr' => __FUNCTION__, '$base_dir' => $base_dir, 'time' => time(), 'static::$instance' => static::$instance]);
 
     parent::__construct($base_dir);
 
@@ -148,6 +148,7 @@ final class Application extends Foundation
       pr(['usr' => __FUNCTION__, 'checks 111 No $controller' => $controller]);
       $request::abort();
     }
+    pr(['usr' => __FUNCTION__, '$request input b4 Middleware' => $request->input()]);
 
 
     // Run specified Middleware
@@ -155,11 +156,11 @@ final class Application extends Foundation
 
       $request = Middleware::run($request, $attributes['middleware']);
     }
-    pr(['usr' => __FUNCTION__, '$request after Middleware' => $request]);
+    pr(['usr' => __FUNCTION__, '$request input after Middleware' => $request]);
 
 
     // Pin the final Request state
-    $request->pinCurrentState( $this->container );
+    $request->pinCurrentState();
 
 
     if($controller instanceof \Closure){
@@ -208,6 +209,7 @@ final class Application extends Foundation
           if(method_exists($dep, 'rules')){
 
             $request->validateWith( $dep->rules() );
+            pr(['usr' => __FUNCTION__, '$dep->rules()' => $dep->rules(), '$request->errors()' => $request->errors()]);
 
             if($output = $request->errors()){
               break;

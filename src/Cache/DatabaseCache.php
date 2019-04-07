@@ -92,5 +92,14 @@ class DatabaseCache extends Cache implements Modelable
   }
 
 
+  public static function expire(string $key)
+  {
+    $where = ['key' => $key];
+
+    $update_values = ['expiration' => time() - 1];
+
+    return static::cache()->model->where($where)->update($update_values);
+  }
+
 
 }

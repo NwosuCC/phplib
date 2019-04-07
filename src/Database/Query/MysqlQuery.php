@@ -1393,13 +1393,14 @@ class MysqlQuery extends Query {
     ];
 
     $this->sql = implode(' ', $composition);
-    pr(['lgc' => __FUNCTION__, '$this->sql' => $this->sql]);
+    pr(['usr' => __FUNCTION__, '$this->sql' => $this->sql]);
 
     if($this->run()->result){
-      $result = $this->lastInsertId();
+//      $result = $this->lastInsertId();
     }
 
-    return ($this->result && !empty($result)) ? $result : $this->connection->affected_rows;
+//    return ($this->result && !empty($result)) ? $result : $this->connection->affected_rows;
+    return !! $this->connection->affected_rows;
   }
 
 

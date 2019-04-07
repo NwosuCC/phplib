@@ -10,9 +10,14 @@ class Arr
    * @param array $values
    * @return array
    */
-  public static function stripEmpty(array $values){
+  public static function stripEmpty(array $values)
+  {
     return array_filter($values, function ($val){
-      if(is_string($val) || is_numeric($val)){ $val = trim($val); }
+
+      if(is_string($val) || is_numeric($val)){
+        $val = trim($val);
+      }
+
       return $val !== '';
     });
   }
@@ -25,7 +30,8 @@ class Arr
    * @param int|string $pad_value
    * @return array
    */
-  public static function pad(array $array, int $pad_size, $pad_value){
+  public static function pad(array $array, int $pad_size, $pad_value)
+  {
     return array_pad($array, $pad_size, $pad_value);
   }
   //    $columns = Arr::each($columns, [Arr::class, 'pad'], 2, '');
@@ -71,7 +77,6 @@ class Arr
     foreach($keys as $i => $value){
       $new_key = $keys[ $i ];
       $old_key = $old_keys[ $i ];
-      pr(['usr' => __FUNCTION__, '$keys' => $keys, '$i' => $i, '$new_key' => $new_key, '$old_key' => $old_key, '$array' => $array]);
 
 //      $assoc_array_values[ $new_key ] = $index_array_values[] = $array[ $old_key ];
       $assoc_array_values[ $new_key ] = $array[ $old_key ];
@@ -82,17 +87,26 @@ class Arr
   }
 
 
-  public static function pickOnly(array $array, array $keys, $assoc = true){
+  public static function pickOnly(array $array, array $keys, $assoc = true)
+  {
     return Arr::pick($array, $keys, false, $assoc);
   }
 
 
-  public static function pickExcept(array $array, array $keys, $assoc = true){
+  public static function pickExcept(array $array, array $keys, $assoc = true)
+  {
     return Arr::pick($array, $keys,true, $assoc);
   }
 
 
-  public static function each(array $values, $callback, ...$arguments){
+  public static function getExistingKeys(array $array, array $keys)
+  {
+    return array_intersect_key( array_flip($keys), $array );
+  }
+
+
+  public static function each(array $values, $callback, ...$arguments)
+  {
 
     return array_map(function($value) use ($callback, $arguments){
 

@@ -48,7 +48,8 @@ if (! function_exists('auth')) {
    */
   function auth()
   {
-    return \Orcses\PhpLib\Access\Auth::auth();
+//    return \Orcses\PhpLib\Access\Auth::auth();
+    return app()->make(\Orcses\PhpLib\Access\Auth::class)->auth();
   }
 }
 
