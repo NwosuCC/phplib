@@ -282,13 +282,11 @@ abstract class Model
       $append_name = Str::titleCase( $append );
 
       $method_name = 'get' . ucfirst($append_name) . 'Attribute';
-      pr(['usr' => __FUNCTION__, '$method_name' => $method_name, 'method_exists' => method_exists($this, $method_name)]);
 
       if(method_exists($this, $method_name)){
         $this->attributes[ $append ] = $this->{$method_name}();
       }
     }
-    pr(['usr' => __FUNCTION__, '$model 111' => get_class($this), 'appends' => $this->appends]);
   }
 
 
@@ -341,7 +339,7 @@ abstract class Model
    */
   public function fill(array $attributes)
   {
-    foreach ($val = $this->getValidAttributes($attributes) as $key => $value) {
+    foreach ($this->getValidAttributes($attributes) as $key => $value) {
 
       if ($this->isFillable($key)) {
         $this->attributes[ $key ] = $value;
@@ -366,7 +364,17 @@ abstract class Model
 
   public function getChanges()
   {
-    return array_diff_assoc($this->attributes, $this->original);
+    $valid_changes = [];
+
+    foreach ($this->attributes as $key => $value){
+
+      if(isset($this->original[ $key ]) && $value !== $this->original[ $key ]){
+
+        $valid_changes[ $key ] = $value;
+      }
+    }
+
+    return $valid_changes;
   }
 
 
@@ -739,12 +747,6 @@ abstract class Model
   }
 
 
-  private function castToDefaultType($result)
-  {
-    return (array) $result;
-  }
-
-
   private function performInsert()
   {
     $this->updateTimestamps();
@@ -777,9 +779,9 @@ abstract class Model
 
     if($this->currentSql()['where']){
 
-      $this->updateTimestamps();
-
       if($update_values = $this->getChanges()){
+
+        $this->updateTimestamps();
 
         // ToDo: remove dryRun
 //        return $this->query()->dryRun()->asTransaction(function () use($update_values){
@@ -806,9 +808,6 @@ abstract class Model
 
   public function update(array $values){
     //ToDo: ...
-
-    // This is already done during hydrate()
-//    $this->original = $this->attributes;
 
     $this->fill($values);
 

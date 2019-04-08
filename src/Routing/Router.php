@@ -115,8 +115,6 @@ class Router
 
       static::$base_route = real_url( $base_route );
     }
-    pr(['alg' => __FUNCTION__, 'static::$base_route' => static::$base_route]);
-
 
     return static::$base_route;
   }
@@ -125,10 +123,8 @@ class Router
   protected static function routePath(string $uri)
   {
     $clean_uri = strtolower( ltrim( real_url($uri)));
-    pr(['alg' => __FUNCTION__, '$uri 111' => $uri, '$clean_uri' => $clean_uri]);
 
     $route_path = '\\' . Str::stripLeadingChar($clean_uri, static::baseRoute().'/');
-    pr(['alg' => __FUNCTION__, '$uri 222' => $uri, '$clean_uri' => $clean_uri, '$route_path' => $route_path]);
 
     return real_url($route_path);
   }
@@ -201,10 +197,6 @@ class Router
         }
       }
     }
-
-    if($this->target){
-      pr(['lgc' => __FUNCTION__, 'key' => $this->key, 'name' => $this->name, 'target' => $this->target, 'attributes' => $this->attributes]);
-    }
   }
 
 
@@ -230,8 +222,6 @@ class Router
     if(stripos($uri, '{') !== false){
       $this->registerParams();
     }
-
-    pr(['usr' => __FUNCTION__, 'method' => $method, 'uri' => $uri]);
 
     static::$routes[ $file ][ $method ][ $uri ] = $this;
   }
@@ -267,8 +257,6 @@ class Router
     $param_routes = [ $file => [ $method => $param_routes]];
 
     static::$param_routes = array_merge_recursive( static::$param_routes, $param_routes );
-
-    pr(['usr' => __FUNCTION__,'$param_routes' => $param_routes,'static::$param_routes' => static::$param_routes]);
   }
 
 
@@ -387,12 +375,10 @@ class Router
       return [];
     }
 
-    pr(['alg' => __FUNCTION__, '$stripped_parts 000' => $stripped_parts, '$uri_parts' => $uri_parts, '$params_best_match' => $params_best_match]);
     foreach(array_reverse($stripped_parts) as $s_part){
       array_unshift($uri_parts, $s_part);
       array_unshift($params_best_match, $s_part);
     }
-    pr(['alg' => __FUNCTION__, '$stripped_parts' => $stripped_parts, '$uri_parts' => $uri_parts, '$params_best_match' => $params_best_match]);
 
     return [ $uri_parts, $params_best_match ];
   }
@@ -431,19 +417,14 @@ class Router
 
   protected function validateRouteName(string $name)
   {
-    /*if( stristr($name, '.') !== false ){
-      $arguments = ["Valid route name must not have a dot (.), {$name} given"];
+    if( ! $key = $this->key or ! Arr::get(static::routes(), $key) ){
 
-      $error = $this->addException( InvalidArgumentException::class, $name, $arguments );
+      $error = $this->addException(RouteNotYetRegisteredException::class, $key, [$name]);
     }
-    else*/if( ! $key = $this->key or ! Arr::get(static::routes(), $key) ){
+    elseif( isset(static::$route_names[ $name ]) ){
 
-    $error = $this->addException(RouteNotYetRegisteredException::class, $key, [$name]);
-  }
-  elseif( isset(static::$route_names[ $name ]) ){
-
-    $error = $this->addException(DuplicateRouteNamesException::class, $name, [$name]);
-  }
+      $error = $this->addException(DuplicateRouteNamesException::class, $name, [$name]);
+    }
 
     return empty($error);
   }
@@ -518,7 +499,6 @@ class Router
   public static function find(string $method, string $uri, string $route_space = null)
   {
     $method = strtolower($method);
-    pr(['alg' => __FUNCTION__, '000 $method' => $method, '$uri' => $uri]);
 
     $uri = static::routePath($uri);
 
@@ -527,7 +507,6 @@ class Router
     }
 
     $route = static::routes()[ $route_space ][ $method ][ $uri ] ?? null;
-    pr(['alg' => __FUNCTION__, '111 $method' => $method, '$uri' => $uri, '$route_space' => $route_space, 'routes' => static::routes()]);
 
     if( ! $route){
       $route = static::findByRouteParams($route_space, $method, $uri);
@@ -544,16 +523,13 @@ class Router
     if( ! $matches = static::filterParamRoute([$route_space, $method, $uri])){
       return null;
     }
-    pr(['alg' => __FUNCTION__, '000 $matches' => $matches, '$uri' => $uri]);
 
     [$uri_parts, $uri_match] = $matches;
 
     $uri_match_path = '/' . implode('/', $uri_match);
-    pr(['alg' => __FUNCTION__, '111 $uri_match_path' => $uri_match_path, '$uri_parts' => $uri_parts, '$uri_match' => $uri_match]);
 
     /** @var null|Router $route */
     if($route = static::routes()[ $route_space ][ $method ][ $uri_match_path ] ?? null){
-      pr(['alg' => __FUNCTION__, '333 $route' => $route, '$uri' => $uri]);
 
       foreach ($uri_match as $i => $key){
 
@@ -564,7 +540,6 @@ class Router
         }
       }
     }
-    pr(['alg' => __FUNCTION__, '444 $route' => $route, '$uri_match_path' => $uri_match_path, 'routes' => static::routes()]);
 
     return $route;
   }
@@ -595,9 +570,6 @@ class Router
   {
     try {
       $file_path = base_dir() . '/routes/'. static::$route_file .'.php';
-
-      // To allow Routes class load the various defined routes
-//      usleep(10000);
 
       if(file_exists($file_path)){
         static::$loaded[] = static::$route_file;
@@ -645,14 +617,6 @@ class Router
         static::$group_attributes = $route->attributes;
 
         $callback->call( $route );
-
-        /*$route_callback = function(Route $route) use($callback){
-
-          $route->post('aa', 'sss');
-
-          $callback( $route );
-
-        };*/
       }
 
       if( ! static::$loaded){
@@ -664,21 +628,6 @@ class Router
 
       // ToDo: cache all routes after loading
 
-
-      /*foreach($routes_map as $i => $values){
-
-        foreach($values as $key => $value){
-          $op = $i . $key;
-
-          [$controller, $name] = is_array($value) ? $value : [$value, ''];
-
-          if($name && ! is_numeric($name)){
-            static::$route_names[ $name ] = $op;
-          }
-
-          static::$routes[ $op ] = $controller;
-        }
-      }*/
     }
   }
 

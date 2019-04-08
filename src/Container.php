@@ -55,6 +55,7 @@ class Container
    */
   public function make($abstract, $parameters = [])
   {
+//    pr(['usr' => __FUNCTION__, '000 $abstract' => $abstract, 'is resolved' => array_key_exists($abstract, $this->resolved)]);
     if ( ! array_key_exists($abstract, $this->resolved)) {
 
       if($concrete = $this->resolve( $this->get($abstract), $parameters )){
@@ -64,7 +65,7 @@ class Container
 
       $this->set($abstract, $concrete);
     }
-//    pr(['usr' => __FUNCTION__, '000 $abstract' => $abstract, '$concrete' => get_class($this->resolved[ $abstract ])]);
+//    pr(['usr' => __FUNCTION__, '111 $abstract' => $abstract, '$concrete' => get_class($this->resolved[ $abstract ])]);
 
     return $this->resolved[ $abstract ];
   }
@@ -79,6 +80,7 @@ class Container
   public function pinResolved($abstract, $concrete)
   {
     $this->resolved[ $abstract ] = $concrete;
+//    pr(['usr' => __FUNCTION__, '$abstract' => $abstract, '$concrete' => $this->resolved[ $abstract ], 'new $concrete' => $concrete->input()]);
 
     return $this->resolved[ $abstract ];
   }
@@ -95,7 +97,7 @@ class Container
    */
   protected function resolve($concrete, $parameters)
   {
-//    pr(['usr' => __FUNCTION__, '000 $concrete' => $concrete, '$parameters' => $parameters]);
+//    pr(['usr' => __FUNCTION__, '$concrete' => $concrete, '$parameters' => $parameters]);
     if ($concrete instanceof Closure) {
 //      pr(['usr' => __FUNCTION__, 'is Closure $concrete' => $concrete]);
       return $concrete($this, $parameters);

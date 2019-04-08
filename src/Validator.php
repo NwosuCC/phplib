@@ -85,7 +85,11 @@ class Validator implements HandlesErrors
 
   protected function getValidatorParams($key)
   {
-    if(is_callable($validator = $this->validator[ $key ])){
+    if(is_null($validator = $this->validator[ $key ])){
+      return null;
+    }
+
+    if(is_callable($validator)){
       $validator = call_user_func($validator, $this->post);
     }
 
@@ -98,7 +102,7 @@ class Validator implements HandlesErrors
     }
 
     $field = isset($validator['as']) ? $validator['as'] : null;
-    pr(['usr' => __FUNCTION__, '$key' => $key, '$validator' => $validator, '$rules' => $rules, '$field' => $field]);
+//    pr(['usr' => __FUNCTION__, '$key' => $key, '$validator' => $validator, '$rules' => $rules, '$field' => $field]);
 
     return [$rules, $field];
   }
@@ -154,7 +158,13 @@ class Validator implements HandlesErrors
       $still_valid = true;
 
       if (array_key_exists($key, $this->validator)) {
-        list($rules, $field) = $this->getValidatorParams($key);
+
+        if( is_null($validator_params = $this->getValidatorParams($key))){
+          $checkedFields[] = $key;
+          continue;
+        }
+
+        list($rules, $field) = $validator_params;
 
         foreach ($rules as $rule){
           $rule_name = is_array($rule) ? $rule[0] : $rule;
@@ -179,7 +189,7 @@ class Validator implements HandlesErrors
       }
     }
 
-    return $this->errors;
+    return [$checkedFields, $this->errors];
   }
 
 

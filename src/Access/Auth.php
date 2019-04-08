@@ -154,9 +154,9 @@ final class Auth
   }
 
 
-  protected function retrieveUser(array $where, string $password = null)
+  protected function retrieveUser(array $where = null, string $password = null)
   {
-    if( ! $user = $this->user->where($where)->first()){
+    if( ! $where || ! $user = $this->user->where($where)->first()){
       return false;
     }
 

@@ -14,11 +14,15 @@ class Request
   use ValidatesRequest;
 
 
-  protected static $instance;
+  protected static $pinned = false;
 
   private $headers, $route_space, $method, $uri, $input, $files, $params;
 
-  protected $validator, $errors, $error_code, $captured;
+  protected $errors;
+
+  protected $captured = [
+      'headers', 'method', 'uri', 'input', 'files', 'params'
+  ];
 
   /** Specifies the routes to throttle */
   protected static $throttle_routes = [];
@@ -30,33 +34,10 @@ class Request
   protected static $route_params = [];
 
 
-  public function __construct()
+  /** @return  static */
+  public static function capture()
   {
-    if(static::$instance){
-      // Allow Request child classes to 'capture' the parent request and its contents
-      $this->capture($this);
-    }
-  }
-
-
-  protected static function instance(){
-    if( ! static::$instance){
-      static::$instance = new static();
-    }
-
-    return static::$instance;
-  }
-
-
-  public static function capture($request = null){
-    if( ! $request){
-      $request = static::instance();
-    }
-
-    /** @var static $request */
-    $request->getContents();
-
-    return $request;
+    return (new static())->getContents();
   }
 
 
@@ -65,8 +46,21 @@ class Request
    */
   public function pinCurrentState()
   {
-    pr(['usr' => __FUNCTION__, 'in[ut' => $this->input()]);
     app()->pin(static::class, $this);
+  }
+
+
+  /**
+   * Called by Request child classes to 'capture' the (pinned) parent's contents
+   */
+  public function hydrate()
+  {
+    /**@var self $request */
+    $request = app()->make(self::class);
+
+    foreach ($request->captured as $prop){
+      $this->{$prop} = $request->{$prop};
+    }
   }
 
 
@@ -182,19 +176,28 @@ class Request
     static::$route_params = [
       'method' => $this->method, 'uri' => $this->uri, 'route_space' => $this->route_space
     ];
+
+    return $this;
+  }
+
+
+  public function transformWith(array $transform)
+  {
+    //
   }
 
 
   public function validateWith(array $rules)
   {
-    if($errors = $this->validator()->make( $rules )->validate( $this )){
+    [$checked_fields, $errors] = $this->validator()->make( $rules )->validate( $this );
 
+    if($errors){
       $this->errors = [report()::VALIDATION, 1, $errors];
     }
 
-    $input = $this->input();
+    $this->input = $this->seek($checked_fields);
 
-    $this->captured = compact('input', 'errors');
+    $this->pinCurrentState();
 
     return $this;
   }

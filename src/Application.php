@@ -197,10 +197,12 @@ final class Application extends Foundation
 //        $class_name = basename( get_class($dep));
 
         if(is_a($dep, Request::class)){
+          /**@var Request $dep */
 
           // Authorize request
           if(method_exists($dep, 'authorize') && ! $dep->authorize()){
 
+            // ToDo: use generic response(403)->message();
             $output = Auth::error(Auth::NOT_AUTHORIZED);
             break;
           }
@@ -209,14 +211,26 @@ final class Application extends Foundation
           if(method_exists($dep, 'rules')){
 
             $request->validateWith( $dep->rules() );
-            pr(['usr' => __FUNCTION__, '$dep->rules()' => $dep->rules(), '$request->errors()' => $request->errors()]);
+            pr(['usr' => __FUNCTION__,'$input 111' => $request->input(), '$request->errors()' => $request->errors()]);
 
             if($output = $request->errors()){
               break;
             }
           }
+
+          // Transform request
+          if(method_exists($dep, 'transform')){
+
+            // ToDo: implement this
+//            $request->transformWith( $dep->transform() );
+          }
+
+          // If all is fine, hydrate the child request with the base Request contents
+          $dep->hydrate();
+
         }
         elseif(is_a($dep, Model::class)){
+          /**@var Model $dep */
 
           // Inject Model dependencies into controller
           if(array_key_exists($parameter_name, $arguments)){

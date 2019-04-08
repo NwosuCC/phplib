@@ -1411,6 +1411,9 @@ class MysqlQuery extends Query {
     pr(['usr' => __FUNCTION__, '$this->sql' => $this->sql]);
 
     if($this->run()->result){
+      // ToDo: add this as an option in config.database
+      // E.g "on_update" return ['1' => true|false, '2' => 'affected_rows', '3' => 'last_updated_row']
+
 //      $result = $this->lastInsertId();
     }
 

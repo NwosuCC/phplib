@@ -96,8 +96,8 @@ class Result
       $result[1] = [$result[1], $notice];
     }
 
-//    $regex = "/{[ ]*([^ {}]+)+[^{}]*}/";
-//    $info = preg_replace($regex, '', $info);
+    $regex = "/{[ ]*([^ {}]+)+[^{}]*}/";
+    $result[1] = preg_replace($regex, '', $result[1]);
 
     return new static($result, $info);
   }

@@ -17,11 +17,8 @@ class Api extends Middleware
     $auth_bearer = $request->getHeader('Authorization');
 
     $token = trim( str_replace('Bearer', '', $auth_bearer));
-    pr(['usr' => __FUNCTION__, '$token' => $token, '$auth_bearer' => $auth_bearer, '$request' => $request->input()]);
 
-    Auth::verify( $token );
-
-    return  $next( $request );
+    return  Auth::verify( $token ) ? $next( $request ) : false;
   }
 
 
