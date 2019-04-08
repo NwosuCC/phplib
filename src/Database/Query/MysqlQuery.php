@@ -26,7 +26,7 @@ class MysqlQuery extends Query {
 
   private $sqlMethod, $multi = [], $isNewQuery = false, $assoc = false;
 
-  public  $result, $rows = [], $count = 0, $dry_run = false, $prevSql;
+  public  $result, $columns, $rows = [], $count = 0, $dry_run = false, $prevSql;
 
 
   /**
@@ -421,6 +421,15 @@ class MysqlQuery extends Query {
 
 
   /**
+   * Returns the columns from the last select operation
+   */
+  public function selectedColumns()
+  {
+    return $this->columns;
+  }
+
+
+  /**
    * Resets and returns the stored 'OR' where clause
    */
   public function getOrWhere()
@@ -666,7 +675,10 @@ class MysqlQuery extends Query {
       Logger::log('sql', [$this->connection->affected_rows, $sql]);
     }
 
-    pr(['usr' => __FUNCTION__, '$sql' => trim($sql), 'affected_rows' => $this->connection->affected_rows, 'num_rows' => $this->result->num_rows ?? '']);
+    pr(['usr' => __FUNCTION__, '$sql' => trim($sql),
+      'affected_rows' => $this->connection->affected_rows,
+      'field_count' => $this->connection->field_count,
+      'num_rows' => $this->result->num_rows ?? '']);
 
     if ( ! $this->result){
       static::throwError(
@@ -705,9 +717,12 @@ class MysqlQuery extends Query {
       $result_set = [];
 
       if ( !empty($this->result->num_rows)){
+
         while($row = call_user_func([$this->result, $function])){
           $result_set[] = $row;
         }
+
+        $this->columns = $result_set ? array_keys( (array) end($result_set) ) : [];
       }
 
     }
@@ -1268,7 +1283,7 @@ class MysqlQuery extends Query {
     ];
 
     $this->sql = implode(' ', $composition);
-    pr(['usr' => __FUNCTION__, '$this->wheres1' => $this->wheres, '$this->sql' => $this->sql]);
+    pr(['usr' => __FUNCTION__, '$this->wheres1' => $this->wheres, '$this->sql' => $this->sql, 'columns' => count($this->columns)]);
 
     return $this;
   }

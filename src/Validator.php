@@ -83,7 +83,8 @@ class Validator implements HandlesErrors
   }
 
 
-  protected function getValidatorParams($key){
+  protected function getValidatorParams($key)
+  {
     if(is_callable($validator = $this->validator[ $key ])){
       $validator = call_user_func($validator, $this->post);
     }
@@ -103,7 +104,8 @@ class Validator implements HandlesErrors
   }
 
 
-  protected function composeReport($failed_rule){
+  protected function composeReport($failed_rule)
+  {
     $report = static::$messages[ $failed_rule ];
 
     foreach ($this->replaces as $find => $replace){

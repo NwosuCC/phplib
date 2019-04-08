@@ -15,8 +15,6 @@ trait HasApiToken
 
   public function retrieveByToken(string $token)
   {
-    pr(['usr' => __FUNCTION__, '$token' => $token]);
-
     if( ! $id = $this->verify($token)) {
       return null;
     }
@@ -33,7 +31,6 @@ trait HasApiToken
   public function generate(string $id)
   {
     $token = JWToken::getToken( $id );
-    pr(['usr' => __FUNCTION__, '$token key' => $token['key']]);
 
     if($saved = DatabaseCache::store($token['key'], $token['value'], $token['expiry'])){
       return $token['value'];

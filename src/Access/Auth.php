@@ -23,8 +23,6 @@ final class Auth
 
   public function __construct(Authenticatable $user)
   {
-    pr(['usr' => __FUNCTION__, 'AuthUser 000' => get_class($user), 'time' => time()]);
-
     if( ! static::$auth){
       $this->user = $user;
 
@@ -80,7 +78,6 @@ final class Auth
     if(self::check()){
       self::auth()->user->imposeAttribute($key, $value);
     }
-    pr(['usr' => __FUNCTION__, 'check()' => self::check(), '$key'=>$key, '$value'=>substr($value, 0, 6), 'user token' => self::auth()->user->token]);
   }
 
 
@@ -118,15 +115,14 @@ final class Auth
       self::updateStats();
 
       // If User class uses trait 'HasApiToken'
-      if(method_exists(static::class, 'generate')){
+      if(method_exists($auth->user, 'generate')){
 
-        if( ! $token = call_user_func([static::class, 'generate'])){
+        if( ! $token = call_user_func([$auth->user, 'generate'], self::id())){
           return static::reset();
         }
 
         self::set('token', $token);
       }
-      pr(['usr' => __FUNCTION__, 'set $token' => $token??'']);
 
     }
     else{
@@ -153,7 +149,6 @@ final class Auth
     $where = $auth->user->retrieveByToken($token);
 
     $auth->retrieveUser($where);
-    pr(['usr' => __FUNCTION__, '$where' => $where, 'user' => self::user()]);
 
     return !empty(self::user());
   }
@@ -187,7 +182,6 @@ final class Auth
 
     // Set authenticated user one time
     static::$auth = $this;
-    pr(['usr' => __FUNCTION__, 'AuthUser 111' => get_class($this->user), 'time' => time()]);
 
     return true;
   }

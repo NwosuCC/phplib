@@ -122,7 +122,7 @@ abstract class Model
   {
     $model = clone $this;
 
-    $model->attributes = $attributes;
+    $model->attributes = $model->original = $attributes;
 
     $model->exists = true;
 
@@ -131,7 +131,6 @@ abstract class Model
     $model->stripHidden();
 
     $model->single = true;
-    pr(['usr' => __FUNCTION__, '$model' => get_class($model), 'attributes' => $model->attributes]);
 
     return $model;
   }
@@ -283,6 +282,7 @@ abstract class Model
       $append_name = Str::titleCase( $append );
 
       $method_name = 'get' . ucfirst($append_name) . 'Attribute';
+      pr(['usr' => __FUNCTION__, '$method_name' => $method_name, 'method_exists' => method_exists($this, $method_name)]);
 
       if(method_exists($this, $method_name)){
         $this->attributes[ $append ] = $this->{$method_name}();
@@ -571,7 +571,16 @@ abstract class Model
 
 
   public function get(){
-    $this->rows();
+    if( ! $this->result){
+      $this->result = true;
+
+      $rows = $this->query()->select()->all();
+
+//      $this->rows = new \ArrayObject( $rows );
+      $this->rows = $rows;
+
+      $this->hydrate();
+    }
 
     return $this;
   }
@@ -582,9 +591,9 @@ abstract class Model
    * @param array $columns The columns to pick. All other columns are dropped
    * @return $this
    */
-  public function getOnly(array $columns)
+  public function only(array $columns)
   {
-    return $this->getSome( 'only', $columns);
+    return $this->some( 'only', $columns);
   }
 
 
@@ -593,13 +602,13 @@ abstract class Model
    * @param array $columns The columns to pick. All other columns are dropped
    * @return $this
    */
-  public function getExcept(array $columns)
+  public function except(array $columns)
   {
-    return $this->getSome( 'except', $columns);
+    return $this->some( 'except', $columns);
   }
 
 
-  protected function getSome(string $filter, array $columns)
+  protected function some(string $filter, array $columns)
   {
     $filters = [
       'only' => 'array_diff',
@@ -609,8 +618,6 @@ abstract class Model
     if( ! array_key_exists($filter, $filters)){
       return null;
     }
-
-    $this->get();
 
     if($this->rows){
       $attributes = array_keys( $this->rows[0]->attributes );
@@ -688,11 +695,7 @@ abstract class Model
   public function rows()
   {
     if( ! $this->result){
-      $this->result = true;
-
-      $this->rows = $this->query()->select()->all();
-
-      $this->hydrate();
+      $this->get();
     }
 
     return $this->rows;
@@ -804,7 +807,8 @@ abstract class Model
   public function update(array $values){
     //ToDo: ...
 
-    $this->original = $this->attributes;
+    // This is already done during hydrate()
+//    $this->original = $this->attributes;
 
     $this->fill($values);
 
