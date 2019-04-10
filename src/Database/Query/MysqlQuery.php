@@ -215,24 +215,6 @@ class MysqlQuery extends Query {
 
 
   /**
-   * Catches any single quote that is NOT already escaped
-   * @param string $value
-   * @param string $char
-   * @return bool
-   */
-  private static function hasUnescapedSingleQuote($value, $char)
-  {
-    $quote_index = strpos($value, $char);
-    $slash_index = strpos($value,"\\");
-
-    $has_quote = $quote_index !== false;
-    $quote_is_unescaped = ($quote_index - 1) !== $slash_index;
-
-    return $has_quote && $quote_is_unescaped;
-  }
-
-
-  /**
    * For Database queries: - Either add single-quotes around values
    *                       - Or add back-quotes around columns
    * @param array|string $columns The columns or values to add quotes to
@@ -286,7 +268,7 @@ class MysqlQuery extends Query {
 
         $column_quote = $column_value ? $quotes['value'] : $quotes['column'];
 
-        if(static::hasUnescapedSingleQuote($column, $column_quote)){
+        if(Str::hasUnescapedSingleQuote($column, $column_quote)){
           // Column already has single quote (suspicious!!!). Empty the array and terminate the loop
           $columns = [];
           break;

@@ -2,6 +2,7 @@
 namespace Orcses\PhpLib;
 
 
+use Net\PreUpload;
 use Orcses\PhpLib\Utility\Arr;
 use Orcses\PhpLib\Access\Auth;
 use Orcses\PhpLib\Routing\Router;
@@ -171,11 +172,13 @@ class Request
       }
     }
 
-    $this->route_space = !empty($web_space) ? Router::WEB : Router::API;
+    // ToDo: include Router::TMP
+    $this->route_space = !empty($web_space) && ! $this->files ? Router::WEB : Router::API;
 
     static::$route_params = [
       'method' => $this->method, 'uri' => $this->uri, 'route_space' => $this->route_space
     ];
+    pr(['usr' => __FUNCTION__, 'method' => $this->method, 'uri' => $this->uri, 'route_space' => $this->route_space, 'input' => $this->input(), 'file' => $this->files()]);
 
     return $this;
   }
@@ -189,6 +192,10 @@ class Request
 
   public function validateWith(array $rules)
   {
+    if($this->files()){
+      $this->input = $this->input ? array_merge($this->input, $this->files) : $this->files;
+    }
+
     [$checked_fields, $errors] = $this->validator()->make( $rules )->validate( $this );
 
     if($errors){
@@ -295,7 +302,7 @@ class Request
 
 
   // ToDo: --
-  public function run_upload(){
+  public function uploadFile(){
     $info = [];
 
     list($error_number, $message) = (new PreUpload)->run( $this->input() );

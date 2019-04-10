@@ -6,6 +6,36 @@ namespace Orcses\PhpLib\Utility;
 class Str
 {
   /**
+   * Catches any single quote that is NOT already escaped
+   * @param string $value
+   * @param string $char
+   * @return bool
+   */
+  public static function hasUnescapedSingleQuote($value, $char)
+  {
+    $quote_index = strpos($value, $char);
+    $slash_index = strpos($value,"\\");
+
+    $has_quote = $quote_index !== false;
+    $quote_is_unescaped = ($quote_index - 1) !== $slash_index;
+
+    return $has_quote && $quote_is_unescaped;
+  }
+
+
+  public static function addSingleQuotes(array $values, bool $escape_existing_quotes = true)
+  {
+    $single_quote = "'";
+
+    return array_map(function($value) use($single_quote, $escape_existing_quotes){
+
+      return "{$single_quote}". $value ."{$single_quote}";
+
+    }, $values);
+  }
+
+
+  /**
    * E.g given " w.status  w.id ", returns ['w.status', 'w.id']
    * @param string $value The string to split and trim
    * @param string $delimiter The delimiter character to use for the split

@@ -368,7 +368,7 @@ abstract class Model
 
     foreach ($this->attributes as $key => $value){
 
-      if(isset($this->original[ $key ]) && $value !== $this->original[ $key ]){
+      if(array_key_exists($key, $this->original) && $value !== $this->original[ $key ]){
 
         $valid_changes[ $key ] = $value;
       }
