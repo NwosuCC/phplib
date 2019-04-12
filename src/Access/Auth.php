@@ -211,13 +211,12 @@ final class Auth
       return false;
     }
 
-    $update_values = [
-      'last_login' => Dates::now(),
-      'delay_login' => $restrain ? intval( static::$throttle_delay ) : 0
-    ];
+    self::user()->{'last_login'} = Dates::now();
 
-    return self::user()->update($update_values);
-  }
+    self::user()->{'delay_login'} = $restrain ? intval( static::$throttle_delay ) : 0;
+
+    return self::user()->save();
+}
 
 
 }

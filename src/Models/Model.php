@@ -133,8 +133,6 @@ abstract class Model
 
     $model->setAppendedAttributes();
 
-    $model->stripHidden();
-
     $model->single = true;
 
     return $model;
@@ -227,11 +225,13 @@ abstract class Model
 
   public function getAttributes(array $columns = [])
   {
-    $available_columns = Arr::getExistingKeys($this->attributes, $columns);
+    if($columns){
+      $available_columns = Arr::getExistingKeys($this->attributes, $columns);
 
-    return $columns
-      ? Arr::pickOnly($this->attributes, array_keys($available_columns))
-      : $this->attributes;
+      return Arr::pickOnly($this->attributes, array_keys($available_columns));
+    }
+
+    return $this->attributes;
   }
 
 
@@ -251,10 +251,15 @@ abstract class Model
 
   public function setAttribute(string $key, $value)
   {
-    return $this->fill([$key => $value]);
+    if( ! $this->hasAttribute($key)){
+      throw new ModelAttributeNotFoundException($this->getModelName(), $key);
+    }
+
+    $this->attributes[ $key ] = $value;
   }
 
 
+  // Set without any checks
   public function imposeAttribute(string $key, $value)
   {
     $this->attributes[ $key ] = $value;
@@ -335,21 +340,13 @@ abstract class Model
   }
 
 
-  protected function stripHidden()
+  protected function stripHidden(array $attributes)
   {
-    /*$hide_columns = $this->shown ? [] : $this->hidden;
+    return array_filter($attributes, function($key){
 
-    if($this->shown){
-      foreach($this->attributes as $key => $value){
-        if( ! in_array($key, $this->shown)){
-          $hide_columns[] = $key;
-        }
-      }
-    }*/
+      return ! in_array($key, $this->hidden);
 
-    $hide_columns = $this->hidden;
-
-    return $this->removeAttributes( $hide_columns );
+    }, ARRAY_FILTER_USE_KEY);
   }
 
 
@@ -713,11 +710,13 @@ abstract class Model
 
     $rows = $multiple ? $this->rows : [$this];
 
-    foreach($rows as &$row){
-      $row = $row->getAttributes();
+    $new_rows = [];
+
+    foreach($rows as $i => $row){
+      $new_rows[] = $this->stripHidden( $row->getAttributes() );
     }
 
-    return $multiple ? $rows : $rows[0];
+    return $multiple ? $new_rows : $new_rows[0];
   }
 
 
@@ -781,7 +780,7 @@ abstract class Model
 
     });
 
-    return $this->newFromExisting( (array) $new_attributes );
+    return $new_attributes ? $this->newFromExisting( (array) $new_attributes ) : false;
   }
 
 
@@ -811,15 +810,19 @@ abstract class Model
 
         // ToDo: remove dryRun
 //        return $this->query()->dryRun()->asTransaction(function () use($update_values){
-        return $this->query()->asTransaction(function () use($update_values){
+        $updated = $this->query()->asTransaction(function () use($update_values){
 
           return $this->query()->update( $update_values );
 
         });
+
+        if($updated){
+          $this->setAppendedAttributes();
+        }
       }
     }
 
-    return false;
+    return ! empty($updated);
   }
 
 
@@ -848,6 +851,12 @@ abstract class Model
       ? $this->performUpdate()
 
       : $this->setNewStringId()->performInsert();
+  }
+
+
+  public function __set(string $attribute, $value)
+  {
+    $this->setAttribute($attribute, $value);
   }
 
 

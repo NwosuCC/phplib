@@ -127,8 +127,6 @@ class UploadedFile extends SplFileInfo implements Uploadable
 
     $config_categorize_disks = $this->config('write_mode.categorize');
 
-    pr(['usr' => __FUNCTION__, '$disk' => $disk, '$upload_dir' => $upload_dir]);
-
     if( ! $upload_dir){
       $this->abort(16);
     }
@@ -138,6 +136,8 @@ class UploadedFile extends SplFileInfo implements Uploadable
     if(in_array($disk, $config_categorize_disks)){
       $upload_dir .= '/' . $this->category();
     }
+
+    pr(['usr' => __FUNCTION__, '$disk' => $disk, '$upload_dir' => $upload_dir, 'base_dir()' => base_dir()]);
 
     return real_dir(
       base_dir() . $upload_dir .'/'. $this->storageName() .'.'. $this->extension()

@@ -15,6 +15,19 @@ if (! function_exists('app')) {
 }
 
 
+if (! function_exists('app_url')) {
+  /**
+   * Return the Application base url
+   *
+   * @return string
+   */
+  function app_url()
+  {
+    return config('app.url');
+  }
+}
+
+
 if (! function_exists('arr_get')) {
   /**
    * Return the array value specified by the key.
@@ -202,7 +215,7 @@ if (! function_exists('pr')) {
     $allow = [
 //      'tmp' => '',
 //      'lgc' => '',
-      'usr' => '',
+//      'usr' => '',
 //      'alg' => '',
     ];
     if(!is_array($data) || ! array_intersect_key($allow, $data)) return;
