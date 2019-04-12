@@ -2,7 +2,6 @@
 namespace Orcses\PhpLib;
 
 
-use Net\PreUpload;
 use Orcses\PhpLib\Utility\Arr;
 use Orcses\PhpLib\Access\Auth;
 use Orcses\PhpLib\Routing\Router;
@@ -17,9 +16,11 @@ class Request
 
   protected static $pinned = false;
 
-  private $headers, $route_space, $method, $uri, $input, $files, $params;
+  private $headers, $route_space, $method, $uri;
 
-  protected $errors;
+  private $input = [], $files = [], $params = [];
+
+  protected $original, $errors;
 
   protected $captured = [
       'headers', 'method', 'uri', 'input', 'files', 'params'
@@ -32,7 +33,7 @@ class Request
    * @var array $route_params
    * The parameters of the current route being processed
    */
-  protected static $route_params = [];
+  protected $route_params = [];
 
 
   /** @return  static */
@@ -76,9 +77,9 @@ class Request
   }
 
 
-  public static function currentRouteParams(bool $assoc = false)
+  public function currentRouteParams(bool $assoc = false)
   {
-    $params = static::$route_params;
+    $params = $this->route_params;
 
     return $assoc ? $params : array_values($params);
   }
@@ -104,11 +105,7 @@ class Request
 
   public function input(string $field = '')
   {
-    if($field){
-      return $this->input[ $field ] ?? null;
-    }
-
-    return $this->input;
+    return $field ? ($this->input[ $field ] ?? null) : ($this->input ?: []);
   }
 
 
@@ -126,9 +123,16 @@ class Request
   }
 
 
-  public function files()
+  public function files(string $field = '')
   {
-    return $this->files;
+    return $field ? ($this->files[ $field ] ?? null) : ($this->files ?: []);
+  }
+
+
+
+  public function original(string $key = null)
+  {
+    return $key ? ($this->original[ $key ] ?? null) : $this->original;
   }
 
 
@@ -161,7 +165,7 @@ class Request
     $this->uri = $_SERVER['REQUEST_URI'];
 
     // ToDo: use the files content
-    $this->files = ( !empty($_FILES)) ? $_FILES : null;
+    $this->files = ( !empty($_FILES)) ? $_FILES : [];
 
     $this->input = json_decode( file_get_contents("php://input"),true);
 
@@ -175,8 +179,12 @@ class Request
     // ToDo: include Router::TMP
     $this->route_space = !empty($web_space) && ! $this->files ? Router::WEB : Router::API;
 
-    static::$route_params = [
+    $this->route_params = [
       'method' => $this->method, 'uri' => $this->uri, 'route_space' => $this->route_space
+    ];
+
+    $this->original = [
+      'input' => $this->input, 'files' => $this->files, 'params' => $this->params
     ];
     pr(['usr' => __FUNCTION__, 'method' => $this->method, 'uri' => $this->uri, 'route_space' => $this->route_space, 'input' => $this->input(), 'file' => $this->files()]);
 
@@ -192,17 +200,21 @@ class Request
 
   public function validateWith(array $rules)
   {
-    if($this->files()){
-      $this->input = $this->input ? array_merge($this->input, $this->files) : $this->files;
-    }
+    [$validated, $errors] = $this->validator()->make( $rules )->validate( $this );
 
-    [$checked_fields, $errors] = $this->validator()->make( $rules )->validate( $this );
+    foreach($validated as $key => $value){
+      // Validated input/files replace the original raw input/files
+      // The original values are still stored in $this->original prop
+
+      array_key_exists($key, $this->files())
+        ? $this->files[ $key ] = $value
+        : $this->input[ $key ] = $value;
+    }
+    pr(['usr' => __FUNCTION__, '$validated' => $validated, 'input' => $this->input(), 'file' => $this->files()]);
 
     if($errors){
       $this->errors = [report()::VALIDATION, 1, $errors];
     }
-
-    $this->input = $this->seek($checked_fields);
 
     $this->pinCurrentState();
 
@@ -302,7 +314,7 @@ class Request
 
 
   // ToDo: --
-  public function uploadFile(){
+  /*public function uploadFile(){
     $info = [];
 
     list($error_number, $message) = (new PreUpload)->run( $this->input() );
@@ -319,7 +331,7 @@ class Request
     }
 
     Result::prepareAndSend(['upload', $upload_result, $info]);
-  }
+  }*/
 
 }
 

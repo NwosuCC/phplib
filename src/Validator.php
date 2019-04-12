@@ -18,12 +18,9 @@ class Validator implements HandlesErrors
 
   protected static $error_handler;
 
-  const REQUIRED = 'required';
-
   // [Function name, [Argument variables names]]
   // ToDO: merge rules and messages [rule => message]
   protected static $rules = [
-    self::REQUIRED => [],
     'address' => [],
     'alphanumeric' => [],
     'alphanumeric_chars' => [],
@@ -43,6 +40,8 @@ class Validator implements HandlesErrors
     'minHeight' => [],
     'minLength' => [],
     'minWidth' => [],
+    'password' => [],
+    'required' => [],
     // ToDO: import from old
     'xtr' => ['extraFields'],
     'chk' => ['checkbox', ['required', 'defaultValue']],
@@ -58,13 +57,15 @@ class Validator implements HandlesErrors
   ];
 
 
-  protected $post, $validator;
+  protected $post = [], $validated_post = [], $validator = [];
 
   protected $check_group = [];
 
   protected $failed_rule, $errors = [], $replaces = [];
 
   protected static $messages = [
+    'fieldExists' => "Supplied data must include these fields: {fields}",
+    // messages that have corresponding functions
     'address' => "{field} may contain only letters and numbers{more_info}",
     'alphanumeric' => "{field} may contain only letters and numbers",
     'alphanumeric_chars' => "{field} may contain only letters and numbers{more_info}",
@@ -75,17 +76,17 @@ class Validator implements HandlesErrors
     'fileType' => 'File must be one of {file_types}{more_info}',
     'image' => '{field} must be a valid image{more_info}',
     'length' => "{field} must be exactly {length} characters long",
-    'max' => "{field} must not be more than {max}",
-    'maxHeight' => "{field} height must not be more than {max_height}{unit}{more_info}",
+    'max' => "{value_type} must not be more than {max}",
+    'maxHeight' => "Image height must not be more than {max_height}{unit}{more_info}",
     'maxLength' => "{field} must not be more than {max_length} characters long",
-    'maxWidth' => "{field} width must not be more than {max_width}{unit}{more_info}",
-    'min' => "{field} must not be less than {min}",
-    'minHeight' => "{field} height must not be less than {min_height}{unit}{more_info}",
+    'maxWidth' => "Image width must not be more than {max_width}{unit}{more_info}",
+    'min' => "{value_type} must not be less than {min}",
+    'minHeight' => "Image height must not be less than {min_height}{unit}{more_info}",
     'minLength' => "{field} must not be less than {min_length} characters long",
-    'minWidth' => "{field} width must not be less than {min_width}{unit}{more_info}",
+    'minWidth' => "Image width must not be less than {min_width}{unit}{more_info}",
     'password' => '{field} must have at least {more_info}',
     'required' => '{field} is required',
-    'size' => "{field} must be equal to {size}",
+    'size' => "{value_type} must be equal to {size}",
   ];
 
 
@@ -163,13 +164,16 @@ class Validator implements HandlesErrors
     }
 
     list($function, $arguments) = is_array($rule) ? $rule : [$rule, null];
-    pr(['usr' => __FUNCTION__, '$function' => $function, '$arguments' => $arguments]);
+    pr(['usr' => __FUNCTION__, '$function' => $function, '$arguments' => $arguments, '$value 000' => $value]);
 
-    if ($function !== 'password' && ! is_array($value)) {
+    if ($function !== 'password' && ! (is_array($value) || is_object($value))) {
       $value = static::clean($value);
     }
+    pr(['usr' => __FUNCTION__, '$function' => $function, '$arguments' => $arguments, '$value 111' => $value]);
 
-    $value = call_user_func([static::class, $function], $value, $arguments);
+    if($value = call_user_func([static::class, $function], $value, $arguments)){
+      [$value] = $value;
+    }
     pr(['usr' => __FUNCTION__, '$rule' => $rule, '$key' => $key, '$value' => $value]);
 
     if($error = is_null($value)) {
@@ -178,12 +182,12 @@ class Validator implements HandlesErrors
       $report = static::composeReport($function);
 
 //      $this->errors[] = ['field' => $key, 'errors' => $report];
-      if( ! in_array($report, $this->errors[$key])){
+      if( ! in_array($report, $this->errors[$key] ?? [])){
         $this->errors[$key][] = $report;
       }
     }
 
-    return ! $error;
+    return [ ! $error, $value];
   }
 
 
@@ -197,15 +201,15 @@ class Validator implements HandlesErrors
     $this->post = $post;
     $this->validator = $validator;
 
-    $checkedFields = [];
-
     foreach ($this->post as $key => $value) {
       $still_valid = true;
 
       if (array_key_exists($key, $this->validator)) {
 
         if( is_null($validator_params = $this->getValidatorParams($key))){
-          $checkedFields[] = $key;
+
+          $this->validated_post[ $key ] = $value;
+
           continue;
         }
 
@@ -213,15 +217,21 @@ class Validator implements HandlesErrors
 
         foreach ($rules as $rule){
           $rule_name = is_array($rule) ? $rule[0] : $rule;
+          pr(['usr' => __FUNCTION__, '$key' => $key, '$rule' => $rule, '$NEXT_value' => $value, 'class' => is_object($value) ? get_class($value) : '']);
 
           if ( ! array_key_exists($rule_name, static::$rules)) {
             throw new InvalidArgumentException("Validation rule '{$rule_name}' does not exist");
           }
 
-          $checkedFields[] = $key;
+          // Re-assign the validated value back to $value for further validation, if any
+          [$valid, $new_value] = $this->applyRule($rule, $key, $value, $field);
 
-          $valid = $this->applyRule($rule, $key, $value, $field);
-          pr(['usr' => __FUNCTION__, '$key' => $key, '$rule' => $rule, '$valid' => $valid]);
+          if($new_value){
+            $value = $new_value;
+          }
+
+          $this->validated_post[ $key ] = $value;
+          pr(['usr' => __FUNCTION__, '$key' => $key, '$rule' => $rule, '$new_value' => $value, 'class' => is_object($value) ? get_class($value) : '', '$valid' => $valid]);
 
           // Once there is an error, $still_valid = false
           if( ! $valid && $still_valid){
@@ -231,13 +241,17 @@ class Validator implements HandlesErrors
       }
     }
 
-    if ($omittedFields = array_diff( array_keys($validator), $checkedFields)) {
-      foreach ($omittedFields as $key) {
-        $this->applyRule(self::REQUIRED, $key, '');
-      }
+    $expectedFields = array_keys($this->validator);
+    $checkedFields = array_keys($this->validated_post);
+
+    if ($omittedFields = array_diff( $expectedFields, $checkedFields)) {
+
+      $this->replaces['fields'] = implode(',', Str::addSingleQuotes($omittedFields));
+
+      $this->applyRule('fieldExists', 'missingFields', '');
     }
 
-    return [ array_unique($checkedFields), $this->errors ];
+    return [ $this->validated_post, $this->errors ];
   }
 
 
@@ -313,19 +327,32 @@ class Validator implements HandlesErrors
     return $chars_names;
   }
 
-
-  protected function fileObject(array $file, array $options = [])
+  /**
+   * @param mixed $file         The uploaded image file
+   * @param array $options
+   * @return UploadedFile | null
+   */
+  protected function fileObject($file, array $options = [])
   {
-    return new UploadedFile( $file, $options );
+    if(is_a($file, UploadedFile::class)){
+      return $file;
+    }
+    elseif(is_array($file) && array_key_exists('tmp_name', $file)){
+      return new UploadedFile( $file, $options );
+    }
+
+    return null;
   }
 
 
   protected function getSizeInfo($value, $size)
   {
     $size = Arr::stripEmpty( explode(',', $size) );
+    pr(['usr' => __FUNCTION__, '$value' => $value, '$size' => $size]);
 
-    if(is_array($value) && array_key_exists('tmp_name', $value)){
-      $spl_file = $this->fileObject( $value );
+    if($spl_file = $this->fileObject( $value )){
+
+      $value_type = 'File';
 
       $actual_size = $spl_file->getSize();
 
@@ -335,9 +362,14 @@ class Validator implements HandlesErrors
 
       $allowed_size_formatted = implode('', $size) . 'B';
 
+      $value = $spl_file;
+
     }
     else if(is_string($value) || is_numeric($value)){
-      $actual_size = trim($value);
+
+      $value_type = 'Number';
+
+      $value = $actual_size = trim($value);
 
       $allowed_size = $allowed_size_formatted = trim($size[0]);
 
@@ -347,9 +379,51 @@ class Validator implements HandlesErrors
     }
 
     return [
-      $actual_size, $allowed_size, $allowed_size_formatted
+      $value, $value_type, $actual_size, $allowed_size, $allowed_size_formatted
     ];
   }
+
+
+  protected function getImageDimensions($file, $operator = null)
+  {
+    if($operator && ! method_exists($this, $operator)){
+      throw new InvalidArgumentException($operator, __FUNCTION__);
+    }
+
+    $spl_file = $width = $height = null;
+
+    /** @var UploadedFile $spl_file */
+    if($image_file = $this->image( $file )){
+
+      $spl_file = $image_file[0];
+
+      if($builder = $this->getImageBuilder( $spl_file->extension() )){
+
+        if($image = call_user_func($builder, $spl_file->tmpName())){
+
+          [$width, $height] = [ imagesx($image), imagesy($image) ];
+        }
+      }
+    }
+
+    return compact('spl_file', 'width', 'height');
+  }
+
+
+  protected function getImageBuilder(string $extension)
+  {
+    if(in_array($extension, ['jpg', 'jpeg'])){
+      $extension = 'jpeg';
+    }
+
+    // ToDO: see also 'imagecreatefromstring()'
+    if(function_exists($function = "imagecreatefrom{$extension}")){
+      return $function;
+    }
+
+    return null;
+  }
+
 
 
   /*==================================================================================
@@ -413,9 +487,13 @@ class Validator implements HandlesErrors
   }
 
 
-  public function contains(string $string, $arguments = [])
+  public function contains(string $string, $arguments = null)
   {
     $replaces = [];
+
+    if( ! $arguments = Arr::stripEmpty( explode(':', $arguments))){
+      return $replaces;
+    }
 
     foreach($arguments as $argument){
       switch ($argument){
@@ -456,39 +534,43 @@ class Validator implements HandlesErrors
   }
 
 
-  public function dimensions(array $image, $length, string $operator = null)
+  public function dimensions($image, $length, string $operator = null)
   {
     $image_dimensions = $this->getImageDimensions( $image );
 
-    $length = $operator ? (int) $length : $length;
+    $spl_file = $image_dimensions['spl_file'];
+    $image_width = $image_dimensions['width'];
+    $image_height = $image_dimensions['height'];
 
-    if( empty($image_dimensions['width']) || empty($image_dimensions['height'])){
+    if( ! $image_width || ! $image_height){
 
       $this->replaces['all'] = static::$messages['image'];
 
       return null;
     }
 
-    elseif($operator === 'maxHeight' && $image_dimensions['height'] > $length) {
+    $length = $operator ? (int) $length : $length;
+
+    if($operator === 'maxHeight' && $image_height > $length) {
       $this->replaces['max_height'] = $length;
     }
 
-    elseif($operator === 'maxWidth' && $image_dimensions['width'] > $length){
+    elseif($operator === 'maxWidth' && $image_width > $length){
       $this->replaces['max_width'] = $length;
     }
 
-    elseif($operator === 'minHeight' && $image_dimensions['height'] < $length) {
+    elseif($operator === 'minHeight' && $image_height < $length) {
       $this->replaces['min_height'] = $length;
     }
 
-    elseif($operator === 'minWidth' && $image_dimensions['width'] < $length){
+    elseif($operator === 'minWidth' && $image_width < $length){
       $this->replaces['min_width'] = $length;
     }
 
     elseif( ! $operator){
       [$width, $height] = Arr::stripEmpty( explode('x', $length) );
 
-      if($image_dimensions['width'] !== $width && $image_dimensions['height'] !== $height){
+      if((int) $image_width !== (int) $width && (int) $image_height !== (int) $height){
         $this->replaces['dimensions'] = $length;
       }
     }
@@ -498,7 +580,7 @@ class Validator implements HandlesErrors
       $this->replaces['unit'] = 'px';
     }
 
-    return ( ! $this->replaces) ? [$length] : null;
+    return ( ! $this->replaces) ? [$spl_file] : null;
   }
 
 
@@ -518,91 +600,47 @@ class Validator implements HandlesErrors
   }
 
 
-  public function fileType(array $file, string $extensions)
+  public function fileType($file, string $extensions)
   {
     $extensions = Arr::stripEmpty( explode(',', $extensions) );
 
     $options = [
       'extensions' => $extensions
     ];
-    pr(['usr' => __FUNCTION__, '$file' => $file, '$options' => $options]);
 
     $spl_file = $this->fileObject( $file, $options );
+    pr(['usr' => __FUNCTION__, '$file' => $file, '$options' => $options, '$spl_file' => $spl_file, 'mime' => $spl_file->fullMimeType()]);
 
-    if( ! $spl_file->isFile()){
-      $this->replaces['more_info'] = '. File is empty';
+    if( ! $spl_file ||  ! $spl_file->isFile()){
+      $this->replaces['more_info'] = '. File is invalid';
     }
     elseif ( ! $spl_file->hasValidMimeType($extensions)){
       $this->replaces['more_info'] = '. Invalid file type';
     }
 
     if($this->replaces){
+
       $this->replaces['file_types'] = implode(',', Str::addSingleQuotes($extensions));
       pr(['usr' => __FUNCTION__, 'valid' => empty($this->replaces), '$replaces' => $this->replaces]);
 
       return null;
     }
 
-    return [$file];
-  }
-
-
-  protected function getImageDimensions(array $file, $operator = null)
-  {
-    if($operator && ! method_exists($this, $operator)){
-      throw new InvalidArgumentException($operator, __FUNCTION__);
-    }
-
-    [$width, $height] = ($image = $this->image( $file, true ))
-//      ? [ imagesx($image[0]), imagesy($image[0]) ]
-      ? [ 205, 500 ]
-      : [null, null];
-
-    pr(['usr' => __FUNCTION__, '$operator' => $operator, '$height' => $height, '$width' => $width, '$image' => $image[0], '$file' => $file]);
-
-    return compact('width', 'height');
-  }
-
-
-  protected function getImageBuilder(string $extension)
-  {
-    if(in_array($extension, ['jpg', 'jpeg'])){
-      $extension = 'jpeg';
-    }
-
-    // ToDO: see also 'imagecreatefromstring()'
-    if(function_exists($function = "imagecreatefrom{$extension}")){
-      return $function;
-    }
-
-    return null;
+    return [$spl_file];
   }
 
 
   /**
-   * @param array $file         The uploaded image file
-   * @param bool  $internal_op  If true (internal operation), returns the [$image, $spl_file] for further use
+   * @param mixed $file         The uploaded image file
    * @return array|null
    */
-  public function image(array $file, bool $internal_op = null)
+  public function image($file)
   {
-    $spl_file = $this->fileObject( $file );
-    pr(['usr' => __FUNCTION__, '$file' => $file, '$spl_file' => $spl_file, '$internal_op' => $internal_op]);
+    $valid_image = ($spl_file = $this->fileObject( $file )) && $spl_file->category() === 'image';
 
-    if( ! $image = $spl_file->fileCategory() === 'image'){
-      return null;
-    }
+    pr(['usr' => __FUNCTION__, '$file' => $file, '$spl_file' => $spl_file]);
 
-    if($builder = $this->getImageBuilder( $spl_file->extension() )){
-      if( ! $image = call_user_func($builder, $spl_file->tmpName()) ){
-        return null;
-      }
-      elseif( ! $internal_op && ! empty($image)) {
-         imagedestroy($image);
-      }
-    }
-
-    return $internal_op ? [$image] : [$spl_file];
+    return $valid_image ? [$spl_file] : null;
   }
 
 
@@ -630,30 +668,11 @@ class Validator implements HandlesErrors
 
   public function max($value, $max)
   {
-    [ $actual_size, $allowed_size, $allowed_size_formatted ] = $this->getSizeInfo($value, $max);
-
-    if($actual_size > $allowed_size){
-      $this->replaces['max'] = $allowed_size_formatted;
-    }
-
-    return ( ! $this->replaces) ? [$actual_size] : null;
+    return $this->size($value, $max, __FUNCTION__);
   }
 
 
-  /*public function maxHeight($image, $max_height)
-  {
-    $image_dimensions = $this->getImageDimensions( $image );
-    pr(['usr' => __FUNCTION__, '$image' => $image, '$image_dimensions' => $image_dimensions]);
-
-    if($image_dimensions['height'] > $max_height) {
-      $this->replaces['max_height'] = $max_height;
-
-      return null;
-    }
-
-    return [$image];
-  }*/
-  public function maxHeight(array $image, $max_height)
+  public function maxHeight($image, $max_height)
   {
     return $this->dimensions($image, $max_height, __FUNCTION__);
   }
@@ -665,7 +684,7 @@ class Validator implements HandlesErrors
   }
 
 
-  public function maxWidth(array $image, $max_width)
+  public function maxWidth($image, $max_width)
   {
     return $this->dimensions($image, $max_width, __FUNCTION__);
   }
@@ -673,18 +692,12 @@ class Validator implements HandlesErrors
 
   public function min($value, $min)
   {
-    [ $actual_size, $allowed_size, $allowed_size_formatted ] = $this->getSizeInfo($value, $min);
-
-    if($actual_size < $allowed_size) {
-      $this->replaces['min'] = $allowed_size_formatted;
-    }
-
-
-    return ( ! $this->replaces) ? [$actual_size] : null;
+    pr(['usr' => __FUNCTION__, '$value' => $value, '$min' => $min]);
+    return $this->size($value, $min, __FUNCTION__);
   }
 
 
-  public function minHeight(array $image, $min_height)
+  public function minHeight($image, $min_height)
   {
     return $this->dimensions($image, $min_height, __FUNCTION__);
   }
@@ -696,7 +709,7 @@ class Validator implements HandlesErrors
   }
 
 
-  public function minWidth(array $image, $min_width)
+  public function minWidth($image, $min_width)
   {
     return $this->dimensions($image, $min_width, __FUNCTION__);
   }
@@ -722,6 +735,7 @@ class Validator implements HandlesErrors
       }
 
       $this->replaces['more_info'] = implode(', ', $replaces);
+      pr(['usr' => __FUNCTION__, '$replaces' => $replaces, '$arguments' => $arguments]);
 
       return null;
     }
@@ -736,15 +750,34 @@ class Validator implements HandlesErrors
   }
 
 
-  public function size($value, $size)
+  public function size($value, $size, string $operator = null)
   {
-    [ $actual_size, $allowed_size, $allowed_size_formatted ] = $this->getSizeInfo($value, $size);
+    if( ! $size_info = $this->getSizeInfo($value, $size)){
 
-    if($actual_size !== $allowed_size){
+      $this->replaces['all'] = '{field} is invalid';
+
+      return null;
+    }
+
+    [ $value, $value_type, $actual_size, $allowed_size, $allowed_size_formatted ] = $size_info;
+
+    if($operator === 'max' && $actual_size > $allowed_size){
+      $this->replaces['max'] = $allowed_size_formatted;
+    }
+
+    elseif($operator === 'min' && $actual_size < $allowed_size) {
+      $this->replaces['min'] = $allowed_size_formatted;
+    }
+
+    elseif( ! $operator && $actual_size !== $allowed_size){
       $this->replaces['size'] = $allowed_size_formatted;
     }
 
-    return ( ! $this->replaces) ? [$actual_size] : null;
+    if($this->replaces){
+      $this->replaces['value_type'] = $value_type;
+    }
+
+    return ( ! $this->replaces) ? [$value] : null;
   }
 
 

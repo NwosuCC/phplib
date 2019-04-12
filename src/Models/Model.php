@@ -3,6 +3,7 @@
 namespace Orcses\PhpLib\Models;
 
 
+use Orcses\PhpLib\Traits\HasRelationship;
 use Orcses\PhpLib\Utility\Arr;
 use Orcses\PhpLib\Utility\Str;
 use Orcses\PhpLib\Utility\Dates;
@@ -16,6 +17,10 @@ use Orcses\PhpLib\Exceptions\ModelTableNotSpecifiedException;
 
 abstract class Model
 {
+
+  use HasRelationship;
+
+
   protected $model_name;
 
   protected $exists = false;
@@ -28,7 +33,7 @@ abstract class Model
 
   protected $guarded = [];
 
-  protected $hidden = [];
+  protected $hidden = [], $shown = [];
 
   protected $appends = [];
 
@@ -298,7 +303,11 @@ abstract class Model
       return true;
     }
 
-    return in_array($key, $this->fillable);
+    $fillable = ! $this->fillable || in_array($key, $this->fillable);
+
+    $totally_guarded = in_array($key, $this->guarded);
+
+    return $fillable && ! $totally_guarded;
   }
 
 
@@ -328,7 +337,19 @@ abstract class Model
 
   protected function stripHidden()
   {
-    return $this->removeAttributes( $this->hidden );
+    /*$hide_columns = $this->shown ? [] : $this->hidden;
+
+    if($this->shown){
+      foreach($this->attributes as $key => $value){
+        if( ! in_array($key, $this->shown)){
+          $hide_columns[] = $key;
+        }
+      }
+    }*/
+
+    $hide_columns = $this->hidden;
+
+    return $this->removeAttributes( $hide_columns );
   }
 
 
@@ -733,6 +754,7 @@ abstract class Model
   }
 
 
+  // ToDo: use uuid()
   private function setNewStringId()
   {
     if($string_key_name = $this->getStringKeyName()){
@@ -753,13 +775,13 @@ abstract class Model
 
     // ToDo: remove dryRun
 //    return $this->query()->dryRun()->asTransaction(function (){
-    return $this->query()->asTransaction(function (){
+    $new_attributes = $this->query()->asTransaction(function (){
 
-      $insert = $this->query()->insert( $this->attributes );
-
-      return $insert;
+      return $this->query()->insert( $this->attributes );
 
     });
+
+    return $this->newFromExisting( (array) $new_attributes );
   }
 
 
@@ -774,6 +796,10 @@ abstract class Model
       elseif($string_key_name = $this->getStringKeyName()){
 
         $this->where([ $string_key_name => $this->getStringKey() ]);
+      }
+
+      if($this->currentSql()['where']){
+        $this->limit(1);
       }
     }
 
@@ -815,8 +841,13 @@ abstract class Model
   }
 
 
-  public function save(){
-    return $this->exists() ? $this->performUpdate() : $this->setNewStringId()->performInsert();
+  public function save()
+  {
+    return $this->exists()
+
+      ? $this->performUpdate()
+
+      : $this->setNewStringId()->performInsert();
   }
 
 

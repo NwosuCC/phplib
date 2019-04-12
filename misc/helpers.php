@@ -1,15 +1,16 @@
 <?php
 
-
 if (! function_exists('app')) {
   /**
    * Return the Application instance
-   *
+   * @param string $class_name  If supplied, returns an instance of the class, else, the App instance
    * @return \Orcses\PhpLib\Application
    */
-  function app()
+  function app(string $class_name = null)
   {
-    return \Orcses\PhpLib\Application::instance();
+    $app = \Orcses\PhpLib\Application::instance();
+
+    return $class_name ? $app->make( $class_name ) : $app;
   }
 }
 
@@ -231,9 +232,9 @@ if (! function_exists('real_dir')) {
    */
   function real_dir(string $path)
   {
-    return str_replace('//', '/', $path);
+    $path = str_replace('//', '/', $path);
 
-//    return str_replace('/', DIRECTORY_SEPARATOR, $path);
+    return str_replace('/', DIRECTORY_SEPARATOR, $path);
   }
 }
 

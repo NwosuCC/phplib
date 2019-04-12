@@ -30,7 +30,11 @@ trait ValidatesRequest
 
   public function validate(Request $request)
   {
-    return $this->validator->run( $request->input(), $this->rules);
+    pr(['usr' => __FUNCTION__, 'input' => $request->input(), 'file' => $request->files()]);
+
+    $input = array_merge( $request->input(), $request->files() );
+
+    return $this->validator->run( $input, $this->rules);
   }
 
 

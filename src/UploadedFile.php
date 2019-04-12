@@ -3,29 +3,50 @@
 namespace Orcses\PhpLib;
 
 
-use Orcses\PhpLib\Exceptions\InvalidArgumentException;
 use SplFileInfo;
+use Orcses\PhpLib\Interfaces\Uploadable;
+use Orcses\PhpLib\Exceptions\InvalidArgumentException;
 
 
-class UploadedFile extends SplFileInfo
+class UploadedFile extends SplFileInfo implements Uploadable
 {
   /** A list of allowed (expected) extensions for the file */
   protected $expected_extensions;
 
-  protected $file, $name, $tmp_name, $mime_type, $extension;
+  protected $error, $file, $name, $tmp_name, $mime_type, $extension, $size;
 
   protected $short_mime_type, $file_category, $formatted_size;
+
+  protected $unique_id, $storage_name, $disk, $config, $permissions, $mode, $group;
 
 
   public function __construct($file, array $options = [])
   {
     $this->file = $file;
 
+    if($this->file['error'] !== UPLOAD_ERR_OK){
+      $this->abort(11);
+    }
+
     $this->parseOptions( $options );
 
-    $this->initializeFIleProps();
-
     parent::__construct( $this->tmpName() );
+
+    $this->initializeFIleProps();
+  }
+
+
+  protected function config(string $key)
+  {
+    $this->config[ $key ] = app()->config("files.uploads.{$key}");
+
+    return $this->config[ $key ];
+  }
+
+
+  public function getConfig(string $key = null)
+  {
+    return array_key_exists($key, $this->config) ? $this->config[ $key ] : $this->config;
   }
 
 
@@ -41,13 +62,121 @@ class UploadedFile extends SplFileInfo
       array_map('chr', range(0, 31)), ['<', '>', ':', '"', '/','\\', '|', '?', '*', ' ']
     );
 
-    $file_name = str_replace($illegal, '-', $this->file['name']);
+    if( ! $file_name = str_replace($illegal, '-', $this->file['name'])){
+      $this->abort(12);
+    }
 
     $file_path_into = pathinfo( $file_name );
 
     $this->name = $file_path_into['filename'] ?: '';
 
-    $this->extension = $file_path_into['extension'] ?: '';
+    $this->extension = strtolower($file_path_into['extension'] ?: '');
+
+    $this->size = $this->getSize();
+  }
+
+
+  /* Will not have unique_id */
+  public function storeAs(string $name, string $disk, array $permissions = null)
+  {
+    $this->unique_id = null;
+
+    $this->storage_name = $name;
+
+    $this->store($disk, $permissions);
+  }
+
+
+  public function store(string $disk, array $permissions = null)
+  {
+    $local_file = $this->localFile($disk);
+
+    $config_allow_overwrite_disks = $this->config('write_mode.replace');
+
+    // Delete existing file then replace with new uploaded file
+    if(file_exists($local_file) && in_array($disk, $config_allow_overwrite_disks)){
+      unlink($local_file);
+    }
+
+    if( ! move_uploaded_file( $this->tmpName(), $local_file)){
+      $this->abort(15);
+    }
+
+    if($this->permissions = $permissions){
+
+      if(array_key_exists('mode', $permissions)){
+        $this->mode = $permissions['mode'];
+
+        chmod($local_file, $this->mode);
+      }
+
+      if(array_key_exists('group', $permissions)){
+        $this->group = $permissions['group'];
+
+        chgrp($local_file, $this->group);
+      }
+    }
+
+    return true;
+  }
+
+
+  public function localFile(string $disk)
+  {
+    $upload_dir = $this->config("disks.{$disk}.dir");
+
+    $config_categorize_disks = $this->config('write_mode.categorize');
+
+    pr(['usr' => __FUNCTION__, '$disk' => $disk, '$upload_dir' => $upload_dir]);
+
+    if( ! $upload_dir){
+      $this->abort(16);
+    }
+
+    $this->disk = $disk;
+
+    if(in_array($disk, $config_categorize_disks)){
+      $upload_dir .= '/' . $this->category();
+    }
+
+    return real_dir(
+      base_dir() . $upload_dir .'/'. $this->storageName() .'.'. $this->extension()
+    );
+  }
+
+
+  public function disk()
+  {
+    return $this->disk;
+  }
+
+
+  public function storageName()
+  {
+    if( ! $this->storage_name){
+      $this->storage_name = $this->uniqueId();
+    }
+
+    return $this->storage_name;
+  }
+
+
+  public function uniqueId()
+  {
+    if( ! $this->unique_id){
+
+      $id_params = $this->name() . 'post_key' . auth()->id();
+
+      $this->unique_id = substr( sha1( $id_params ),3,31);
+    }
+
+    return $this->unique_id;
+  }
+
+
+  public function rawFile()
+  {
+    return $this->file;
   }
 
 
@@ -55,6 +184,7 @@ class UploadedFile extends SplFileInfo
   {
     return $this->name;
   }
+
 
   public function tmpName()
   {
@@ -111,7 +241,9 @@ class UploadedFile extends SplFileInfo
 
   public function hasValidMimeType(array $allowed_extensions)
   {
-    $extension = $this->extension();
+    $allowed_extensions = array_map('strtolower', $allowed_extensions);
+
+    $extension = strtolower( $this->extension() );
 
     $expected_mime = $this->commonMimeTypes( $extension );
 
@@ -134,7 +266,7 @@ class UploadedFile extends SplFileInfo
 
    * E.g, for mime_type 'image/pnf', getFileCategory(true) (ie, short-form) returns 'image'
    */
-  public function fileCategory(bool $short = true)
+  public function category(bool $short = true)
   {
     if( ! $this->file_category){
 
@@ -165,11 +297,17 @@ class UploadedFile extends SplFileInfo
   }
 
 
+  public function size()
+  {
+    return $this->size;
+  }
+
+
   /** @return array */
   public function formattedSize()
   {
     if( ! $this->formatted_size){
-      $this->formatted_size = $this->fileSizeFromBytes( $this->getSize() );
+      $this->formatted_size = $this->fileSizeFromBytes( $this->size() );
     }
 
     return $this->formatted_size;
@@ -207,6 +345,29 @@ class UploadedFile extends SplFileInfo
     [$number, $unit] = $size;
 
     return $number * pow(1024, $nth[ $unit ]);
+  }
+
+
+  public function error()
+  {
+    return $this->error;
+  }
+
+
+  protected function abort(int $code)
+  {
+    $error_messages = [
+      '11'    => "File Error: {$this->file['error']}",
+      '12'    => "File name is empty",
+//      '13'    => "File type is not supported. {more}",
+//      '14'    => "File size limit exceeded. {more}",
+      '15'    => "File not saved.",
+      '16'    => 'Storage disk/directory could not be accessed',
+    ];
+
+    $this->error = $error_messages[ $code ] ?? $code;
+
+    throw new InvalidArgumentException("Uploaded file error: {$this->error}");
   }
 
 

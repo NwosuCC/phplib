@@ -10,6 +10,7 @@ use Orcses\PhpLib\Exceptions\Routes\DuplicateRoutesException;
 use Orcses\PhpLib\Exceptions\Routes\MethodNotSupportedException;
 use Orcses\PhpLib\Exceptions\Routes\DuplicateRouteNamesException;
 use Orcses\PhpLib\Exceptions\Routes\RouteNotYetRegisteredException;
+use Orcses\PhpLib\Request;
 use Orcses\PhpLib\Utility\Arr;
 use Orcses\PhpLib\Utility\Str;
 
@@ -436,13 +437,16 @@ class Router
   }
 
 
-  public static function setLoginRouteName(array $route_params)
+  public static function setLoginRouteName()
   {
     if(static::$LOGIN_ROUTE_NAME){
       return;
     }
 
-    $route = static::find( ...$route_params );
+    /** @var Request $request */
+    $request = app(\Orcses\PhpLib\Request::class);
+
+    $route = static::find( ...$request->currentRouteParams() );
 
     static::$LOGIN_ROUTE_NAME = $route ? $route->name : null;
   }

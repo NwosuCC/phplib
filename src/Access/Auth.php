@@ -102,7 +102,7 @@ final class Auth
    */
   public static function attempt(array $vars)
   {
-    Router::setLoginRouteName( Request::currentRouteParams() );
+    Router::setLoginRouteName();
 
     $auth = static::auth();
 
