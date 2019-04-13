@@ -42,11 +42,11 @@ if (! function_exists('arr_get')) {
     $segments = is_array($key) ? $key : explode('.', $key);
 
     foreach ($segments as $segment) {
-      if (!array_key_exists($segment, $array)) {
+      if ( ! array_key_exists($segment, $array)) {
         break;
       }
 
-      $array = $array[$segment];
+      $array = $array[ $segment ];
     }
 
     return value($array);
@@ -196,7 +196,7 @@ if (! function_exists('log_error')) {
 
     \Orcses\PhpLib\Logger::log('error', $message);
 
-    return safe_call($callback);
+    return safe_call( $callback );
   }
 }
 
@@ -215,7 +215,7 @@ if (! function_exists('pr')) {
     $allow = [
 //      'tmp' => '',
 //      'lgc' => '',
-//      'usr' => '',
+      'usr' => '',
 //      'alg' => '',
     ];
     if(!is_array($data) || ! array_intersect_key($allow, $data)) return;
@@ -327,10 +327,10 @@ if (! function_exists('safe_call')) {
    * Run a script in try{} block
    *
    * @param  array  $block
-   * @param  array  $callback
+   * @param  array  $error_callback
    * @return mixed
    */
-  function safe_call(array $block, array $callback = [])
+  function safe_call(array $block, array $error_callback = [])
   {
     // Sample: in JWToken::verifyJWT()
     /*$decoded = safe_mode([
@@ -349,9 +349,9 @@ if (! function_exists('safe_call')) {
       }
     }
     catch (Exception $e){
-      if($callback) {
-        $callback_function = $callback['function'] ?? $callback[0] ?? null;
-        $callback_params = $callback['parameters'] ?? $callback[1] ?? [];
+      if($error_callback) {
+        $callback_function = $error_callback['function'] ?? $error_callback[0] ?? null;
+        $callback_params = $error_callback['parameters'] ?? $error_callback[1] ?? [];
 
         if(is_callable($callback_function)){
           return call_user_func_array($callback_function, $callback_params);

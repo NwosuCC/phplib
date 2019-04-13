@@ -2,6 +2,7 @@
 
 namespace Orcses\PhpLib;
 
+
 use RuntimeException;
 use Orcses\PhpLib\Utility\Arr;
 use Orcses\PhpLib\Access\Auth;
@@ -9,6 +10,7 @@ use Orcses\PhpLib\Models\Model;
 use Orcses\PhpLib\Routing\Router;
 use Orcses\PhpLib\Middleware\Middleware;
 use Orcses\PhpLib\Exceptions\InvalidArgumentException;
+use Orcses\PhpLib\Exceptions\Routes\InvalidRouteActionException;
 
 
 final class Application extends Foundation
@@ -44,7 +46,7 @@ final class Application extends Foundation
     $this->set_default_timezone();
 
     // [Optional] Specify custom error handler for MysqlQuery operations
-    if($this->config['exceptions.handler'] === 'log_info'){
+    if($this->config['exceptions']['handler'] === 'log_info'){
       $this->use_log_info_handler();
     }
 
@@ -73,7 +75,8 @@ final class Application extends Foundation
 
   public function config(string $key = ''){
     if($key){
-      return $this->config[ $key ] ?? null;
+//      return $this->config[ $key ] ?? null;
+      return arr_get( $this->config, $key );
     }
 
     return $this->config;
@@ -100,7 +103,7 @@ final class Application extends Foundation
 
   private function use_log_info_handler()
   {
-    $target_classes = $this->config['exceptions.target_classes'];
+    $target_classes = $this->config['exceptions']['target_classes'];
 
     foreach ($target_classes as $class){
       $log_info_parameters = [
@@ -130,24 +133,32 @@ final class Application extends Foundation
     Router::loadRoutes();
 
     // Get matching Route
-    $route = Router::find( ...$request->currentRouteParams() );
+    if( ! $route = Router::find( ...$request->currentRouteParams() )){
+      pr(['usr' => __FUNCTION__, 'checks 111 No $route' => $route]);
 
-    $controller = $arguments = $attributes = $result = null;
-
-    if($route){
-      [$controller, $arguments, $attributes] = $route->props(['target', 'parameters', 'attributes']);
-
-      // Bind route parameters into request
-      $request->setParams( $arguments );
+      $request::abort();
+      exit;
     }
-    pr(['usr' => __FUNCTION__, '$controller' => $controller, '$arguments' => $arguments, '$attributes' => $attributes]);
+
+    [$target, $arguments, $attributes] = $route->props(['target', 'parameters', 'attributes']);
+
+    // Bind route parameters into request\][p
+    $request->setParams( $arguments );
+
+    pr(['usr' => __FUNCTION__, '$target' => $target, '$arguments' => $arguments, '$attributes' => $attributes]);
 
 
     // Abort request if controller is invalid
-    if( ! $controller){
-      pr(['usr' => __FUNCTION__, 'checks 111 No $controller' => $controller]);
-      $request::abort();
+    if( ! $target){
+
+      [$route_method, $route_uri] = $route->props(['method', 'uri']);
+
+      $route_params = strtoupper($route_method) .' '. $route_uri;
+      pr(['usr' => __FUNCTION__, 'checks 222 No $target' => $target, '$route_params' => $route_params]);
+
+      throw new InvalidRouteActionException( $target, $route_params);
     }
+
     pr(['usr' => __FUNCTION__, '$request input b4 Middleware' => $request->input()]);
 
 
@@ -163,44 +174,50 @@ final class Application extends Foundation
     $request->pinCurrentState();
 
 
-    if($controller instanceof \Closure){
+    if($target instanceof \Closure){
 
-      $output = $controller->call($this, $arguments);
+      $output = $target->call($this, $arguments);
       pr(['usr' => __FUNCTION__, '$output 000' => $output, '$output class' => is_object($output) ? get_class($output) : '']);
 
       if( is_a($output,Response::class)){
         // Already packaged; ready to send
         return $output;
       }
-      elseif( ! is_a($output,Result::class)){
+//      elseif( ! is_a($output,Result::class)){
 
         $result = Result::prepare( $output );
-      }
-      pr(['usr' => __FUNCTION__, '$result 333' => $result]);
-
+        pr(['usr' => __FUNCTION__, '$result 333' => $result]);
+//      }
     }
     else {
-      [$controller, $method] = $this->controller->getClassAndMethod($controller);
+      $dependencies = [];
 
-      // Resolve controller from DI Container
-      $controller_class = $this->controller->makeInstanceFor($controller);
+//      try {
+        [$controller, $method] = $this->controller->getClassAndMethod($target);
 
-      // Resolve controller method from DI Container
-      /** @var \ReflectionMethod $reflectorMethod */
-      [$reflectorMethod, $dependencies] = $this->container->resolveMethod($controller_class, $method);
+        // Resolve controller from DI Container
+        $controller_class = $this->controller->makeInstanceFor($controller);
 
-      // Validate and check Auth
+        // Resolve controller method from DI Container
+        /** @var \ReflectionMethod $reflectorMethod */
+        [$reflectorMethod, $dependencies] = $this->container->resolveMethod($controller_class, $method);
+      pr(['usr' => __FUNCTION__, '$controller_class' => get_class($controller_class)]);
+//      }
+//      catch(ReflectionException $e){}
+//      catch(Exception $e){}
 
+      if( ! empty($e)){
+        throw new InvalidRouteActionException( $target );
+      }
 
       // Format Dependencies
-      foreach ($dependencies as $parameter_name => &$dep){
-//        $class_name = basename( get_class($dep));
+      foreach ($dependencies as $parameter_name => &$dependency){
 
-        if(is_a($dep, Request::class)){
-          /**@var Request $dep */
+        if(is_a($dependency, Request::class)){
+          /**@var Request $dependency */
 
           // Authorize request
-          if(method_exists($dep, 'authorize') && ! $dep->authorize()){
+          if(method_exists($dependency, 'authorize') && ! $dependency->authorize()){
 
             // ToDo: use generic response(403)->message();
             $output = Auth::error(Auth::NOT_AUTHORIZED);
@@ -208,9 +225,9 @@ final class Application extends Foundation
           }
 
           // Validate request
-          if(method_exists($dep, 'rules')){
+          if(method_exists($dependency, 'rules')){
 
-            $request->validateWith( $dep->rules() );
+            $request->validateWith( $dependency->rules() );
             pr(['usr' => __FUNCTION__,'$input 111' => $request->input(), '$request->errors()' => $request->errors()]);
 
             if($output = $request->errors()){
@@ -219,29 +236,29 @@ final class Application extends Foundation
           }
 
           // Transform request
-          if(method_exists($dep, 'transform')){
+          if(method_exists($dependency, 'transform')){
 
             // ToDo: implement this
-//            $request->transformWith( $dep->transform() );
+//            $request->transformWith( $dependency->transform() );
           }
 
           // If all is fine, hydrate the child request with the base Request contents
-          $dep->hydrate();
+          $dependency->hydrate();
 
         }
-        elseif(is_a($dep, Model::class)){
-          /**@var Model $dep */
+        elseif(is_a($dependency, Model::class)){
+          /**@var Model $dependency */
 
           // Inject Model dependencies into controller
           if(array_key_exists($parameter_name, $arguments)){
 
-            $dep = Model::newFromObj($dep, $arguments[ $parameter_name ]);
+            $dependency = Model::newFromObj($dependency, $arguments[ $parameter_name ]);
           }
         }
-
       }
+      pr(['usr' => __FUNCTION__,'$output' => $output??'', '$dependencies' => $dependencies, '$reflectorMethod' => !empty($reflectorMethod) ? get_class($reflectorMethod) : '']);
 
-      if(empty($output)){
+      if(empty($output) && ! empty($reflectorMethod)){
         $dependencies = array_values($dependencies);
 
         // Call Controller Method
@@ -251,7 +268,7 @@ final class Application extends Foundation
       $result = Result::prepare($output);
     }
 
-    pr(['usr' => __FUNCTION__, '$result' => $result]);
+    pr(['usr' => __FUNCTION__, '$result' => $result ?? '']);
 
     // Return packaged response to App index for dispatch
     return Response::package( $result );

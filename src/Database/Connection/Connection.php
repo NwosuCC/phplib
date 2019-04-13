@@ -31,7 +31,7 @@ abstract class Connection implements Connectible
       $driver = $this->getDefaultConnection();
     }
 
-    if($this->config = config("database.drivers.{$driver}")){
+    if($this->config = app()->config("database.drivers.{$driver}")){
       $this->setDatabase($this->config['database']);
     }
   }
@@ -40,7 +40,7 @@ abstract class Connection implements Connectible
   public function getDefaultConnection()
   {
     if( ! $this->default){
-      $this->default = config("database.default");
+      $this->default = app()->config("database.default");
     }
 
     return $this->default;

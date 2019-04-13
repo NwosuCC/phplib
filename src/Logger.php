@@ -16,16 +16,17 @@ class Logger {
 
   public static function log($type, $details)
   {
-    if(!static::$log_dir){
-      static::$log_dir = base_dir() . config('files.log.dir');
+    if( ! static::$log_dir){
+      static::$log_dir = base_dir() . app()->config('files.log.dir');
     }
 
-    if(empty(static::$files[$type]) or empty($details)){
+    if( empty(static::$files[$type]) || empty($details) ){
+
       $error_message = empty(static::$files[$type])
         ? "Type [$type] is not supported"
         : 'Parameter $details must not be empty';
 
-      throw new Exception('Logger::log() ' . $error_message);
+      throw new Exception(__METHOD__ . '() ' . $error_message);
     }
 
     if($report = static::composeReport($type, $details)){

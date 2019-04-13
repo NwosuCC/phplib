@@ -1,11 +1,11 @@
 <?php
 
-namespace Orcses\PhpLib\Exceptions;
+namespace Orcses\PhpLib\Exceptions\Model;
 
 
 use RuntimeException;
 
-class ModelTableNotSpecifiedException extends RuntimeException
+class TableNotSpecifiedException extends RuntimeException
 {
 
   public function __construct( $model_name ) {

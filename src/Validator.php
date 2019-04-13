@@ -3,11 +3,12 @@
 namespace Orcses\PhpLib;
 
 
-use Orcses\PhpLib\Exceptions\InvalidArgumentException;
-use Orcses\PhpLib\Interfaces\HandlesErrors;
-use Orcses\PhpLib\Traits\HandlesError;
 use Orcses\PhpLib\Utility\Arr;
 use Orcses\PhpLib\Utility\Str;
+use Orcses\PhpLib\Files\UploadedFile;
+use Orcses\PhpLib\Traits\HandlesError;
+use Orcses\PhpLib\Interfaces\HandlesErrors;
+use Orcses\PhpLib\Exceptions\InvalidArgumentException;
 
 
 class Validator implements HandlesErrors

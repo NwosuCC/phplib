@@ -1,11 +1,11 @@
 <?php
 
-namespace Orcses\PhpLib\Exceptions;
+namespace Orcses\PhpLib\Exceptions\Model;
 
 
 use RuntimeException;
 
-class ModelAttributeNotFoundException extends RuntimeException
+class AttributeNotFoundException extends RuntimeException
 {
 
   public function __construct( $model_name, $attribute ) {

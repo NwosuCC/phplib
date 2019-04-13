@@ -11,8 +11,8 @@ use Orcses\PhpLib\Interfaces\Modelable;
 use Orcses\PhpLib\Database\Query\MysqlQuery;
 use Orcses\PhpLib\Database\Connection\MysqlConnection;
 use Orcses\PhpLib\Database\Connection\ConnectionManager;
-use Orcses\PhpLib\Exceptions\ModelAttributeNotFoundException;
-use Orcses\PhpLib\Exceptions\ModelTableNotSpecifiedException;
+use Orcses\PhpLib\Exceptions\Model\AttributeNotFoundException;
+use Orcses\PhpLib\Exceptions\Model\TableNotSpecifiedException;
 
 
 abstract class Model
@@ -238,7 +238,7 @@ abstract class Model
   public function getAttribute($key)
   {
     if( ! $this->hasAttribute($key)){
-      throw new ModelAttributeNotFoundException($this->getModelName(), $key);
+      throw new AttributeNotFoundException($this->getModelName(), $key);
     }
 
     // ToDo: implement ArrayAccess and Iterator to use array objects in this Model
@@ -252,7 +252,7 @@ abstract class Model
   public function setAttribute(string $key, $value)
   {
     if( ! $this->hasAttribute($key)){
-      throw new ModelAttributeNotFoundException($this->getModelName(), $key);
+      throw new AttributeNotFoundException($this->getModelName(), $key);
     }
 
     $this->attributes[ $key ] = $value;
@@ -407,7 +407,7 @@ abstract class Model
   protected function setTable(string  $table = null)
   {
     if( ! $table and ! $table = $this->getTableNameFromModel()){
-      throw new ModelTableNotSpecifiedException( $this->getModelName() );
+      throw new TableNotSpecifiedException( $this->getModelName() );
     }
 
     $this->table = $table;
@@ -500,7 +500,7 @@ abstract class Model
     try {
       return $this->getAttribute( $this->key );
     }
-    catch (ModelAttributeNotFoundException $e){}
+    catch (AttributeNotFoundException $e){}
 
     return null;
   }
@@ -786,6 +786,7 @@ abstract class Model
 
   private function performUpdate()
   {
+    // ToDo: remove PseudoModels and get rid of this check :: any update MUST happen with the model Key()
     if( ! $this->wheres){
 
       if($key_name = $this->getKeyName()){
@@ -804,10 +805,9 @@ abstract class Model
 
     if($this->currentSql()['where']){
 
+      $this->updateTimestamps();
+
       if($update_values = $this->getChanges()){
-
-        $this->updateTimestamps();
-
         // ToDo: remove dryRun
 //        return $this->query()->dryRun()->asTransaction(function () use($update_values){
         $updated = $this->query()->asTransaction(function () use($update_values){

@@ -6,8 +6,8 @@ use Error;
 use Exception;
 use Dotenv\Dotenv;
 use Orcses\PhpLib\Utility\Arr;
+use Orcses\PhpLib\Exceptions\FileNotFoundException;
 use Orcses\PhpLib\Exceptions\ClassNotFoundException;
-use Orcses\PhpLib\Exceptions\ConfigurationFileNotFoundException;
 
 
 class Foundation
@@ -22,7 +22,7 @@ class Foundation
 
   protected $start_time;
 
-  protected $base_path, $config;
+  protected $base_path, $config, $dot_config;
 
 
   protected function __construct($base_dir)
@@ -88,14 +88,19 @@ class Foundation
   protected function loadConfigurations()
   {
     try {
-      $config = require ( $this->baseDir() . '/config/app.php'.'' );
+      $file_path = $this->baseDir() . '/config/app.php';
 
-      $this->config = Arr::toDotNotation($config);
+      if(file_exists($file_path)){
 
-      $this->config['app.dir'] = $this->appDir();
+        $this->config = require (''.$file_path.'');
+
+        $this->config['app']['dir'] = $this->appDir();
+
+//        $this->dot_config = Arr::toDotNotation( $this->config );
+      }
     }
     catch (Exception $e){
-      throw new ConfigurationFileNotFoundException();
+      throw new FileNotFoundException("Configuration", $file_path ?? '');
     }
   }
 
@@ -103,7 +108,6 @@ class Foundation
   protected function registerServiceProviders()
   {
     try {
-
       if($providers = require ( $this->baseDir() . '/config/providers.php'.'' )){
 
         foreach ($providers as $class_name){
@@ -115,7 +119,6 @@ class Foundation
           $this->providers[ $class_name ] = $provider_class;
         }
       }
-
     }
     catch (Exception $e){}
   }

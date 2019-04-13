@@ -186,7 +186,6 @@ class Request
     $this->original = [
       'input' => $this->input, 'files' => $this->files, 'params' => $this->params
     ];
-    pr(['usr' => __FUNCTION__, 'method' => $this->method, 'uri' => $this->uri, 'route_space' => $this->route_space, 'input' => $this->input(), 'file' => $this->files()]);
 
     return $this;
   }
@@ -210,7 +209,6 @@ class Request
         ? $this->files[ $key ] = $value
         : $this->input[ $key ] = $value;
     }
-    pr(['usr' => __FUNCTION__, '$validated' => $validated, 'input' => $this->input(), 'file' => $this->files()]);
 
     if($errors){
       $this->errors = [report()::VALIDATION, 1, $errors];
@@ -243,8 +241,6 @@ class Request
    */
   public static function abort(array $error_code = [], bool $log_out = false)
   {
-    pr(['usr' => __FUNCTION__, '$error_code' => $error_code, '$log_out' => $log_out]);
-
     if( ! $error_code){
       $error_code = ['App', 2];
     }

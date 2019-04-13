@@ -17,13 +17,14 @@ trait HasRelationship
    * @param string $related
    * @return \Orcses\PhpLib\Models\Model
    */
-  public function belongsTo(string $related)
+  public function hasMany(string $related)
   {
-//    pr(['usr' => __FUNCTION__, '$prop' => $this->getIdProp(), '$related_class' => $related_class]);
-
-    return app()->make($related)->where([
+    pr(['usr' => __FUNCTION__, '$prop' => $this->getIdProp(), 'getKey' => $this->getKey(), '$related' => $related]);
+    $aa = app()->make($related)->refresh()->where([
       $this->getIdProp() => $this->getKey()
     ]);
+
+    return $aa;
   }
 
 
