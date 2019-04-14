@@ -4,8 +4,8 @@ namespace Orcses\PhpLib\Middleware\Auth;
 
 
 use Closure;
-use Orcses\PhpLib\Access\Auth;
 use Orcses\PhpLib\Request;
+use Orcses\PhpLib\Access\Auth;
 use Orcses\PhpLib\Middleware\Middleware;
 
 

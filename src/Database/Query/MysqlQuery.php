@@ -367,13 +367,13 @@ class MysqlQuery extends Query {
 
     $string = rand(1,9) * rand(1,9) * time();
 
-    $id_group[] = $unique_id = Str::hash($string, $length);
+    $id_group[] = $unique_id = Str::randomHash($string, $length);
 
     // Twice the number of required IDs to cover for any existing ones
     $iterations = $chunk * 2;
 
     for($n = 1; $n < $iterations; $n++){
-      $id_group[] = Str::hash($string, $length, $n);
+      $id_group[] = Str::randomHash($string, $length, $n);
     }
 
     $this->where([

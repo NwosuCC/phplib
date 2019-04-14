@@ -128,7 +128,6 @@ class UploadedFile extends File implements Uploadable
       $upload_dir .= '/' . $this->category();
     }
 
-
     return real_dir(
       base_dir() . $upload_dir .'/'. $this->storageName() .'.'. $this->extension()
     );

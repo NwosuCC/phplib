@@ -7,6 +7,13 @@ interface Mailable
 {
 
   /**
+   * @param string  $key
+   * @return mixed
+   */
+  public function __get(string $key);
+
+
+  /**
    * @param array   $to
    * @param string  $subject
    * @param string  $body
@@ -30,9 +37,10 @@ interface Mailable
 
   /**
    * @param string  $email
+   * @param string  $name [optional]
    * @return $this
    */
-  public function to(string $email);
+  public function to(string $email, string $name = null);
 
 
   /**

@@ -8,6 +8,7 @@ use Swift_Message;
 use Swift_Attachment;
 use Swift_SmtpTransport;
 use Swift_TransportException;
+use Swift_RfcComplianceException;
 
 use Exception;
 use Orcses\PhpLib\Files\File;
@@ -19,7 +20,6 @@ use Orcses\PhpLib\Exceptions\InvalidArgumentException;
 
 class Mailer implements Mailable
 {
-  protected $host, $port, $security, $username, $password;
 
   protected $email, $name, $subject, $sender_name, $message;
 
@@ -34,6 +34,12 @@ class Mailer implements Mailable
   }
 
 
+  public function __get(string $key)
+  {
+    return property_exists($this, $key) ? $this->{$key} : null;
+  }
+
+
   public function mail(array $to = null, string $subject = null, string $body = null)
   {
     $this->to( ...($to ?: []) );
@@ -43,62 +49,6 @@ class Mailer implements Mailable
     $this->html( $body );
 
     return $this;
-  }
-
-
-  public function send()
-  {
-    $this->compose();
-
-    try {
-      return ($mailer = $this->createTransport())
-        ? !! $mailer->send($this->message)
-        : false;
-    }
-    catch(Swift_TransportException $e){}
-    catch(Exception $e){}
-
-    $this->compileError( $e->getMessage() );
-
-    return false;
-  }
-
-
-  protected function compose()
-  {
-    $this->sender = [$this->username => $this->sender_name ?: ''];
-
-    $this->recipient = [$this->email => $this->name ?: ''];
-    pr(['usr' => __FUNCTION__, 'sender' => $this->sender, 'recipient' => $this->recipient]);
-
-    $this->message = (new Swift_Message())
-
-      ->setSubject( $this->subject )
-
-      ->setFrom( $this->sender )
-
-      ->setTo( $this->recipient )
-
-      ->setBody($this->html_content, 'text/html')
-
-      ->addPart($this->text_content, 'text/plain');
-
-    foreach($this->attachment as $attachment){
-
-      $this->message->attach($attachment);
-    }
-  }
-
-
-  protected function createTransport()
-  {
-    $transport = new Swift_SmtpTransport($this->host, $this->port, $this->security);
-
-    $transport
-      ->setUsername($this->username)
-      ->setPassword($this->password);
-
-    return new Swift_Mailer($transport);
   }
 
 
@@ -210,15 +160,7 @@ class Mailer implements Mailable
       );
     }
 
-    $this->host     = $mail['host'];
 
-    $this->port     = $mail['port'];
-
-    $this->security = $mail['encryption'];
-
-    $this->username = $mail['username'];
-
-    $this->password = $mail['password'];
   }
 
 
@@ -232,15 +174,13 @@ class Mailer implements Mailable
 
   public function compileError(string $error)
   {
-    pr(['usr' => __FUNCTION__, 'sender 000' => $this->sender, 'recipient' => $this->recipient]);
-    $sender = '[' . key($this->sender) .' '. current($this->sender) . ']';
+    $sender = "['" . current($this->sender) ."': ". key($this->sender) . "]";
 
-    $recipient = '[' . implode(',', $this->recipient) . ']';
-    pr(['usr' => __FUNCTION__, 'sender 111' => $sender, 'recipient' => $recipient]);
+    $recipient = "['" . current($this->recipient) ."': ". key($this->recipient) . "]";
 
     $attempt_info = "{$sender} attempted send to {$recipient}";
 
-    $this->error = [get_called_class(), $error . ' ' . $attempt_info];
+    $this->error = get_called_class() .' - '. $error .' - '. $attempt_info;
   }
 
 

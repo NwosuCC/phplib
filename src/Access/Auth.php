@@ -3,8 +3,8 @@
 namespace Orcses\PhpLib\Access;
 
 
+use Carbon\Carbon;
 use Orcses\PhpLib\Request;
-use Orcses\PhpLib\Utility\Dates;
 use Orcses\PhpLib\Routing\Router;
 use Orcses\PhpLib\Interfaces\Auth\Authenticatable;
 
@@ -211,7 +211,7 @@ final class Auth
       return false;
     }
 
-    self::user()->{'last_login'} = Dates::now();
+    self::user()->{'last_login'} = Carbon::now();
 
     self::user()->{'delay_login'} = $restrain ? intval( static::$throttle_delay ) : 0;
 

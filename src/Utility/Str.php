@@ -121,18 +121,25 @@ class Str
 
 
   /**
-   * Sanitizes a string as SQL query
+   * Hashes a string using 'sha1'
+   *
    * @param string $string
    * @param int $start
    * @param int $length
    * @param bool $random
    * @return string
    */
-  public static function hash($string = '', int $length = 0, int $start = 0, bool $random = true)
+  public static function hash($string = '', int $length = 0, int $start = 0, bool $random = false)
   {
     $hash = sha1( $string . ($random ? microtime(true) : '') );
 
     return $length ? substr($hash, $start, $length) : $hash;
+  }
+
+
+  public static function randomHash($string = '', int $length = 0, int $start = 0)
+  {
+    return static::hash($string, $length, $start, true);
   }
 
 

@@ -201,6 +201,12 @@ class Router
   }
 
 
+  public function uri()
+  {
+    return $this->uri;
+  }
+
+
   protected function register(string $method, string $uri, $target, array $parameters = [])
   {
     $file = $this->currentRouteFile();
@@ -549,6 +555,10 @@ class Router
   }
 
 
+  /**
+   * @param string        $name
+   * @return  null|Router $route
+   */
   public static function findByName(string $name)
   {
     $key = static::names()[ $name ] ?? null;

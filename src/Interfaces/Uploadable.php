@@ -35,7 +35,7 @@ interface Uploadable
 
   public function extension();
 
-  
+
   public function category();
 
 

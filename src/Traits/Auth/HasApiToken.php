@@ -3,7 +3,7 @@
 namespace Orcses\PhpLib\Traits\Auth;
 
 
-use Orcses\PhpLib\Access\JWToken;
+use Orcses\PhpLib\Access\Token;
 use Orcses\PhpLib\Cache\DatabaseCache;
 
 
@@ -30,10 +30,13 @@ trait HasApiToken
    */
   public function generate(string $id)
   {
-    $token = JWToken::getToken( $id );
+    $token = Token::generate( [$id], false );
 
-    if($saved = DatabaseCache::store($token['key'], $token['value'], $token['expiry'])){
-      return $token['value'];
+    if($value = $token['value']){
+
+      if($saved = DatabaseCache::store($token['key'], $value, $token['expiry'])){
+        return $token['value'];
+      }
     }
 
     return null;
@@ -47,7 +50,7 @@ trait HasApiToken
    */
   public function verify(string $token)
   {
-    if($verified = JWToken::verifyToken($token)) {
+    if($verified = Token::verify($token, false)) {
 
       if($is_valid_token = DatabaseCache::get( $verified['key'] )){
 
@@ -55,7 +58,7 @@ trait HasApiToken
       }
     }
 
-    static::$error = JWToken::error();
+    static::$error = Token::error();
 
     return null;
   }
@@ -67,7 +70,7 @@ trait HasApiToken
    */
   public function expireToken()
   {
-    if( ! $user = auth()->user() or ! $verified = JWToken::verifyToken($user->token)) {
+    if( ! $user = auth()->user() or ! $verified = Token::verify($user->token)) {
       return true;
     }
 

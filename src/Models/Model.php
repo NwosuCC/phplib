@@ -3,11 +3,11 @@
 namespace Orcses\PhpLib\Models;
 
 
-use Orcses\PhpLib\Traits\HasRelationship;
+use Carbon\Carbon;
 use Orcses\PhpLib\Utility\Arr;
 use Orcses\PhpLib\Utility\Str;
-use Orcses\PhpLib\Utility\Dates;
 use Orcses\PhpLib\Interfaces\Modelable;
+use Orcses\PhpLib\Traits\HasRelationship;
 use Orcses\PhpLib\Database\Query\MysqlQuery;
 use Orcses\PhpLib\Database\Connection\MysqlConnection;
 use Orcses\PhpLib\Database\Connection\ConnectionManager;
@@ -202,14 +202,16 @@ abstract class Model
   {
     foreach(static::$timestamps as $i => $timestamp){
 
-      if( array_key_exists($timestamp, $this->attributes)){
+      $table_columns = $this->exists() ? $this->attributes : $this->table_columns;
+
+      if( array_key_exists($timestamp, $table_columns)){
 
         // Skip the 'created_at' column if model already exists
         if($i === 0 && $this->exists()){
           continue;
         }
 
-        $this->attributes[ $timestamp ] = Dates::now();
+        $this->attributes[ $timestamp ] = Carbon::now();
       }
     }
 
@@ -771,6 +773,7 @@ abstract class Model
   private function performInsert()
   {
     $this->updateTimestamps();
+    pr(['usr' => __FUNCTION__, 'email_token' => $this->getAttributes()]);
 
     // ToDo: remove dryRun
 //    return $this->query()->dryRun()->asTransaction(function (){

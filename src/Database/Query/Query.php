@@ -47,7 +47,8 @@ class Query
 
 
   protected function hasTable(string $table) {
-    return in_array($table, $this->tables[ $this->database ]);
+    return array_key_exists($this->database, $this->tables)
+        && in_array($table, $this->tables[ $this->database ]);
   }
 
 

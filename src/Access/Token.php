@@ -3,24 +3,21 @@
 namespace Orcses\PhpLib\Access;
 
 
-use Orcses\PhpLib\Cache\DatabaseCache;
-
-
 class Token
 {
   protected static $error;
 
   /**
    * Retrieves a new token
-   * @param array  $user_info The user info to embed in the token
-   * @return string|null
+   * @param array  $user_info   The user data to embed in the token
+   * @param bool   $only_value  If true, returns only the token value, else, the entire array
+   * @return mixed
    */
-  public static function generate(array $user_info = [])
+  public static function generate(array $user_info = [], bool $only_value = true)
   {
-    list($key, $token, $expiry) = JWToken::getToken( implode('.', $user_info));
+    if($token = JWToken::getToken( implode('.', $user_info))){
 
-    if($saved = DatabaseCache::store($key, $token, $expiry)){
-      return $token;
+      return $only_value ? $token['value'] : $token;
     }
 
     return null;
@@ -30,18 +27,14 @@ class Token
   /**
    * Retrieves a new token
    * @param string  $token
-   * @return array
+   * @param bool    $only_data  If true, returns only the user data, else, the entire array
+   * @return mixed
    */
-  public static function verify(string $token)
+  public static function verify(string $token, bool $only_data = true)
   {
     if($verified = JWToken::verifyToken($token)) {
 
-      [$key, $token, $expiry, $id] = $verified;
-
-      if($isValidToken = DatabaseCache::get($key)){
-
-        return compact('token', 'id', 'expiry');
-      }
+        return $only_data ? explode('.', $verified['data']) : $verified;
     }
 
     static::$error = JWToken::error();

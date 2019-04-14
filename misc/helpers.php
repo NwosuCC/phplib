@@ -322,6 +322,20 @@ if (! function_exists('requires')) {
 }
 
 
+if (! function_exists('route')) {
+  /**
+   * Returns the uri for the named route
+   *
+   * @param  string $name
+   * @return null|\Orcses\PhpLib\Routing\Router $route
+   */
+  function route(string $name)
+  {
+    return \Orcses\PhpLib\Routing\Router::findByName( $name );
+  }
+}
+
+
 if (! function_exists('safe_call')) {
   /**
    * Run a script in try{} block
@@ -400,6 +414,22 @@ if (! function_exists('value')) {
   function value($value)
   {
     return $value instanceof Closure ? $value() : $value;
+  }
+}
+
+
+if (! function_exists('view')) {
+  /**
+   * Returns the full path to a view template file
+   *
+   * @param  string  $path
+   * @return mixed
+   */
+  function view(string $path)
+  {
+    $file_path = str_replace('.', DIRECTORY_SEPARATOR, $path);
+
+    return realpath(base_dir() . '/resources/' . $file_path . '.html' );
   }
 }
 

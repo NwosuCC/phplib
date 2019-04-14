@@ -25,6 +25,8 @@ class MysqlConnection extends Connection
 
     if($connection = new MySQLi($host, $username, $password, $database)){
 
+      $connection->set_charset("utf8mb4_unicode_ci");
+
       $connection->query("use {$database}");
 
       $this->configureTimezone($connection, []);
