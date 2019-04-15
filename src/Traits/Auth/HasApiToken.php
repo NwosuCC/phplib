@@ -80,7 +80,9 @@ trait HasApiToken
 
   public function tokenError()
   {
-    return static::$error ?: null;
+    $error = static::$error;
+
+    return static::$error = null ?: $error;
   }
 
 

@@ -18,7 +18,16 @@ class Api extends Middleware
 
     $token = trim( str_replace('Bearer', '', $auth_bearer));
 
-    return  Auth::verify( $token ) ? $next( $request ) : false;
+    if( ! Auth::verify( $token )){
+
+      Request::abort(
+        auth()::error( auth()::INVALID_TOKEN ), true
+      );
+
+      exit(1);
+    }
+
+    return $next( $request );
   }
 
 

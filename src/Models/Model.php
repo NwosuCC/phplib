@@ -773,7 +773,6 @@ abstract class Model
   private function performInsert()
   {
     $this->updateTimestamps();
-    pr(['usr' => __FUNCTION__, 'email_token' => $this->getAttributes()]);
 
     // ToDo: remove dryRun
 //    return $this->query()->dryRun()->asTransaction(function (){

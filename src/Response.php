@@ -170,7 +170,18 @@ class Response
       header('Access-Control-Allow-Origin: ' . $this->CORS_allowed_Urls);
     }
 
-    header('X-Powered-By: PLiza');
+//    header('X-Powered-By: PLiza');
+//    header('Server: (c)2017 PLiza Inc.', true);
+
+    // ToDo: use this instead
+    // NOTE: 'Server' removal hasn't worked, is this necessary??
+    $guarded_headers = [
+      'X-Powered-By', 'Server'
+    ];
+
+    foreach($guarded_headers as $guarded){
+      header_remove( $guarded );
+    }
 
     header('Access-Control-Allow-Headers: Content-Type');
 

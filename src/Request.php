@@ -227,7 +227,7 @@ class Request
     }
 
     if( ! $error){
-      $error = Auth::error(Auth::PLEASE_CONTINUE);
+      $error = Auth::error(Auth::ERROR_DEFAULT);
     }
 
     return static::retryOrFail($route_key, $error);
@@ -236,20 +236,20 @@ class Request
 
   /**
    * Abort the request if any unexpected error occurs e.g Controller not found (???)
-   * @param array $error_code e,g ['access', 3]
+   * @param array $error_code   If true, logout User. $error_code should be [$http_code, $message]
    * @param bool $log_out
    */
   public static function abort(array $error_code = [], bool $log_out = false)
   {
     if( ! $error_code){
-      $error_code = ['App', 2];
+      $error_code = [report()::APP, 2];
     }
 
-    ($log_out && $error_code[0] === report()::ACCESS)
+    if($log_out && $error_code[0] === report()::ACCESS){
+      Auth::logout();
+    }
 
-      ? Auth::logout( $error_code[1] )
-
-      : Response::get( $error_code )->send();
+    Response::get( $error_code )->send();
   }
 
 

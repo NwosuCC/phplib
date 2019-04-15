@@ -215,7 +215,7 @@ if (! function_exists('pr')) {
     $allow = [
 //      'tmp' => '',
 //      'lgc' => '',
-//      'usr' => '',
+      'usr' => '',
 //      'alg' => '',
     ];
     if(!is_array($data) || ! array_intersect_key($allow, $data)) return;
@@ -279,6 +279,18 @@ if (! function_exists('report')) {
     }
 
     return \Orcses\PhpLib\Report::instance();
+  }
+}
+
+
+if (! function_exists('request')) {
+  /**
+   * Returns an instance of the Request class
+   * @return \Orcses\PhpLib\Request
+   */
+  function request()
+  {
+    return app()->make(\Orcses\PhpLib\Request::class);
   }
 }
 

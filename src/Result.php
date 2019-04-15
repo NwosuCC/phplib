@@ -3,6 +3,8 @@
 namespace Orcses\PhpLib;
 
 
+use Orcses\PhpLib\Utility\Str;
+
 class Result
 {
   protected static $reports = [];
@@ -87,9 +89,8 @@ class Result
 
     // Apply the $replaces on the stubs
     if( ! empty($replaces) and is_array($replaces)){
-      foreach ($replaces as $find => $replace){
-        $result[1] = str_replace('{'.$find.'}', $replace, $result[1]);
-      }
+
+      $result[1] = Str::replaces($result[1], $replaces);
     }
     
     if( ! empty($notice)){

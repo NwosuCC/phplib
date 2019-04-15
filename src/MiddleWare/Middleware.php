@@ -79,7 +79,8 @@ abstract class Middleware
 
     $middleware = app()->make( $class_name );
 
-    if(! $middleware || ! is_a($middleware,static::class)){
+    if( ! $middleware || ! is_a($middleware,static::class)){
+
       throw new RuntimeException(
         "Middleware class for '{$key}' must extend the base class " . static::class
       );

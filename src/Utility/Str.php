@@ -186,6 +186,16 @@ class Str
   }
 
 
+  public static function replaces(string $subject, array $replaces)
+  {
+    foreach ($replaces as $find => $replace){
+      $subject = str_replace('{'.$find.'}', $replace, $subject);
+    }
+
+    return $subject;
+  }
+
+
   public static function snakeCase(string $value)
   {
     $split = str_split( static::trimMultipleSpaces($value));

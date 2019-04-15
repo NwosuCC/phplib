@@ -11,6 +11,22 @@ use Orcses\PhpLib\Interfaces\Auth\Authenticatable;
 
 final class Auth
 {
+  const INV_CREDENTIALS = 1;
+
+  const NOT_AUTHORIZED = 2;
+
+  const ERROR_DEFAULT = 3;
+
+  const THROTTLE_DELAY = 4;
+
+  const INVALID_TOKEN = 5;
+
+
+  protected static $replaces = [
+    self::INVALID_TOKEN
+  ];
+
+
   protected static $throttle_delay = 15;
 
   protected static $auth;
@@ -43,9 +59,45 @@ final class Auth
   }
 
 
+  /*public static function error(int $code)
+  {
+    if( ! array_key_exists($code, self::$errors)){
+      $code = 3;
+    }
+
+    [$http_code, $message] = self::$errors[ $code ];
+
+    if(in_array($code, self::$replaces)){
+
+      $message = Str::replaces($message, ['more_info' => self::moreInfo($code)]);
+    }
+
+    return [$http_code, $message];
+  }*/
   public static function error($code, $replaces = [])
   {
+    if(in_array($code, self::$replaces) && $more_info = self::moreInfo($code)){
+
+      $replaces[ $more_info[0] ] = $more_info[1] ?: '';
+    }
+
     return error( report()::ACCESS, $code, $replaces );
+  }
+
+
+  /**
+   * @param  int $code
+   * @return array
+   */
+  protected static function moreInfo(int $code)
+  {
+    $info = [
+      5 => [
+        'token_error', ($error = self::getTokenError()) ? $error . '. Please, log in to continue' : ''
+      ]
+    ];
+
+    return $info[ $code ] ?? [];
   }
 
 
@@ -54,6 +106,7 @@ final class Auth
   {
     return static::$auth;
   }
+
 
   public static function user()
   {
@@ -133,7 +186,7 @@ final class Auth
       Request::throttle( Router::getLoginRouteName(), $error);
     }
 
-    return !empty(self::user());
+    return ! empty(self::id());
   }
 
 
@@ -150,7 +203,7 @@ final class Auth
 
     $auth->retrieveUser($where);
 
-    return !empty(self::user());
+    return ! empty(self::id());
   }
 
 
@@ -184,6 +237,15 @@ final class Auth
     static::$auth = $this;
 
     return true;
+  }
+
+
+  public static function getTokenError()
+  {
+    // If User class uses trait 'HasApiToken'
+    return method_exists(self::auth()->user, 'tokenError')
+      ? call_user_func([self::auth()->user, 'tokenError'])
+      : null;
   }
 
 

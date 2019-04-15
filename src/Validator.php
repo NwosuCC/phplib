@@ -140,13 +140,14 @@ class Validator implements HandlesErrors
     $report = static::$messages[ $failed_rule ];
 
     if(array_key_exists('all', $this->replaces)){
-      $report = str_replace('{field}', $this->replaces['field'], $this->replaces['all']);
+
+      $report = $this->replaces['all'];
+
+      $this->replaces = ['field' => $this->replaces['field']];
     }
-    else {
-      foreach ($this->replaces as $find => $replace){
-        $report = str_replace('{'.$find.'}', $replace, $report);
-      }
-    }
+
+    $report = Str::replaces($report, $this->replaces);
+
     pr(['usr' => __FUNCTION__, '$failed_rule' => $failed_rule, 'replaces' => $this->replaces]);
 
     $this->replaces = [];
