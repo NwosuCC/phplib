@@ -3,7 +3,6 @@
 namespace Orcses\PhpLib\Notification\Clients;
 
 
-use Orcses\PhpLib\Interfaces\Mailable;
 use Swift_Mailer;
 use Swift_Message;
 use Swift_Attachment;
@@ -12,45 +11,65 @@ use Swift_TransportException;
 use Swift_RfcComplianceException;
 
 use Exception;
+use Orcses\PhpLib\Interfaces\Mail\Mailable;
+use Orcses\PhpLib\Interfaces\Mail\MailClient;
 
 
-class Swift
+class Swift implements MailClient
 {
   protected $host, $port, $security, $username, $password;
 
   protected $mail, $message, $error;
 
 
-  public function configure(array $credentials)
+  public function send(Mailable $mailable)
   {
-    $this->host     = $credentials['host'];
+    $this->mail = $mailable->getMailObject();
 
-    $this->port     = $credentials['port'];
+    $this->configure();
 
-    $this->security = $credentials['encryption'];
+    try {
+      return $this->compose() && ($mailer = $this->createTransport())
 
-    $this->username = $credentials['username'];
+        ? !! $mailer->send($this->message)
 
-    $this->password = $credentials['password'];
+        : false;
+    }
+    catch(Swift_TransportException $e){}
+    catch(Exception $e){}
+
+    if( ! empty($e)){
+      $this->error = $e->getMessage();
+    }
+
+    return false;
   }
 
 
-  protected function compose(Mailable $mail)
+  protected function compose()
   {
-    $sender = [$mail->{'username'} => $mail->{'sender_name'} ?: ''];
+    $mail = $this->mail['mailable'];
 
-    $recipient = [$mail->{'email'} => $mail->{'name'} ?: ''];
+    $sender = [$this->username => $mail['sender_name'] ?: ''];
+
+    $recipient = [$mail['email'] => $mail['name'] ?: ''];
+
+    $subject      = $mail['subject'];
+    $html_content = $mail['html_content'];
+    $text_content = $mail['text_content'];
+    $attachment   = $mail['attachment'];
 
     try {
       $this->message = (new Swift_Message())
-        ->setSubject( $mail->{'subject'} )
+        ->setSubject( $subject )
         ->setFrom( $sender )
         ->setTo( $recipient )
-        ->setBody($mail->{'html_content'}, 'text/html')
-        ->addPart($mail->{'text_content'}, 'text/plain');
+        ->setBody( $html_content, 'text/html')
+        ->addPart( $text_content, 'text/plain');
 
-      foreach($this->attachment as $attachment){
-        $this->message->attach($attachment);
+      foreach($attachment as $file_path){
+
+        $this->message->attach( Swift_Attachment::fromPath($file_path) );
       }
 
       return true;
@@ -72,35 +91,31 @@ class Swift
   }
 
 
-  public function send()
+  protected function createTransport()
   {
-    try {
-      return $this->message && ($mailer = $this->createTransport())
+    $transport = new Swift_SmtpTransport( $this->host, $this->port, $this->security );
 
-        ? !! $mailer->send($this->message)
+    $transport
+      ->setUsername( $this->username )
+      ->setPassword( $this->password );
 
-        : false;
-    }
-    catch(Swift_TransportException $e){}
-    catch(Exception $e){}
-
-    if( ! empty($e)){
-      $this->error = $e->getMessage();
-    }
-
-    return false;
+    return new Swift_Mailer($transport);
   }
 
 
-  protected function createTransport()
+  protected function configure()
   {
-    $transport = new Swift_SmtpTransport($this->host, $this->port, $this->security);
+    $credentials    = $this->mail['credentials'];
 
-    $transport
-      ->setUsername($this->username)
-      ->setPassword($this->password);
+    $this->host     = $credentials['host'];
 
-    return new Swift_Mailer($transport);
+    $this->port     = $credentials['port'];
+
+    $this->security = $credentials['encryption'];
+
+    $this->username = $credentials['username'];
+
+    $this->password = $credentials['password'];
   }
 
 

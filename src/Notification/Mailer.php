@@ -3,16 +3,9 @@
 namespace Orcses\PhpLib\Notification;
 
 
-use Swift_Mailer;
-use Swift_Message;
-use Swift_Attachment;
-use Swift_SmtpTransport;
-use Swift_TransportException;
-use Swift_RfcComplianceException;
-
-use Exception;
 use Orcses\PhpLib\Files\File;
-use Orcses\PhpLib\Interfaces\Mailable;
+use Orcses\PhpLib\Interfaces\Mail\Mailable;
+use Orcses\PhpLib\Interfaces\Mail\MailClient;
 use Orcses\PhpLib\Exceptions\InvalidFileException;
 use Orcses\PhpLib\Exceptions\FileNotFoundException;
 use Orcses\PhpLib\Exceptions\InvalidArgumentException;
@@ -20,23 +13,58 @@ use Orcses\PhpLib\Exceptions\InvalidArgumentException;
 
 class Mailer implements Mailable
 {
+  protected $mail_client;
+
+  protected $credentials = [];
 
   protected $email, $name, $subject, $sender_name, $message;
 
   protected $html_content, $text_content, $attachment = [], $link;
 
+  protected $reply_to, $cc = [], $bcc = [];
+
   protected $sender = [], $recipient = [], $error;
 
 
-  public function __construct()
+  public function __construct(MailClient $mail_client)
   {
     $this->setCredentials();
+
+    $this->mail_client = $mail_client;
   }
 
 
-  public function __get(string $key)
+  public function send()
   {
-    return property_exists($this, $key) ? $this->{$key} : null;
+    if( ! $sent = $this->mail_client->send( $this )){
+
+      $this->error = $this->mail_client->getError();
+
+      $this->compileError();
+    }
+
+    return $sent;
+  }
+
+
+  public function getMailObject()
+  {
+    return [
+      'credentials' => $this->credentials,
+
+      'mailable' => [
+        'sender_name' => $this->sender_name ?: '',
+        'reply_to' => $this->reply_to ?: '',
+        'email' => $this->email,
+        'name' => $this->name,
+        'cc' => array_unique( $this->cc ),
+        'bcc' => array_unique( $this->bcc ),
+        'subject' => $this->subject,
+        'html_content' => $this->html_content,
+        'text_content' => $this->text_content,
+        'attachment' => $this->attachment,
+      ]
+    ];
   }
 
 
@@ -52,10 +80,33 @@ class Mailer implements Mailable
   }
 
 
-  // ToDo: For different sender names, use 'sendAs()' ??, or add config 'mail_from' => [] ???
-  public function senderName(string $name = null)
+  public function senderName(string $name)
   {
     $this->sender_name = $name;
+
+    return $this;
+  }
+
+
+  public function replyTo(string $email)
+  {
+    $this->reply_to = $email;
+
+    return $this;
+  }
+
+
+  public function cc(array $emails)
+  {
+    $this->cc = array_merge( $this->cc, $emails );
+
+    return $this;
+  }
+
+
+  public function bcc(array $emails)
+  {
+    $this->bcc = array_merge( $this->bcc, $emails );
 
     return $this;
   }
@@ -83,7 +134,7 @@ class Mailer implements Mailable
   {
     if($attachment_file = $this->verifyFile($file_path)){
 
-      $this->attachment[] = Swift_Attachment::fromPath($attachment_file);
+      $this->attachment[] = $attachment_file;
     }
 
     return $this;
@@ -154,17 +205,18 @@ class Mailer implements Mailable
   {
     $default = app()->config('mail.default');
 
-    if( ! $mail = app()->config("mail.drivers.{$default}")){
+    if( ! $credentials = app()->config("mail.drivers.{$default}")){
+
       throw new InvalidArgumentException(
         "Mail credentials for '{$default}' could not be loaded"
       );
     }
 
-
+    $this->credentials = $credentials;
   }
 
 
-  public function error()
+  public function getError()
   {
     $error = $this->error;
 
@@ -172,8 +224,10 @@ class Mailer implements Mailable
   }
 
 
-  public function compileError(string $error)
+  public function compileError()
   {
+    $error = $this->getError();
+
     $sender = "['" . current($this->sender) ."': ". key($this->sender) . "]";
 
     $recipient = "['" . current($this->recipient) ."': ". key($this->recipient) . "]";

@@ -1,16 +1,36 @@
 <?php
 
-namespace Orcses\PhpLib\Interfaces;
+namespace Orcses\PhpLib\Interfaces\Mail;
 
 
 interface Mailable
 {
 
   /**
-   * @param string  $key
-   * @return mixed
+   * @return array Mailable object
+   *
+   * Example:
+   *  $mailable = [
+        'credentials' => $this->credentials,
+
+        'mail' => [
+          'sender_name' => $this->sender_name,
+          'email' => $this->email,
+          'name' => $this->name,
+          'subject' => $this->subject,
+          'html_content' => $this->html_content,
+          'text_content' => $this->text_content,
+          'attachment' => $this->attachment,
+        ]
+      ];
    */
-  public function __get(string $key);
+  public function getMailObject();
+
+
+  /**
+   * @return bool
+   */
+  public function send();
 
 
   /**
@@ -23,16 +43,10 @@ interface Mailable
 
 
   /**
-   * @return bool
-   */
-  public function send();
-
-
-  /**
    * @param string  $name
    * @return $this
    */
-  public function senderName(string $name = null);
+  public function senderName(string $name);
 
 
   /**
@@ -88,7 +102,7 @@ interface Mailable
   /**
    * @return string
    */
-  public function error();
+  public function getError();
 
 
 }
