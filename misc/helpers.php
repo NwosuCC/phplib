@@ -43,6 +43,9 @@ if (! function_exists('arr_get')) {
 
     foreach ($segments as $segment) {
       if ( ! array_key_exists($segment, $array)) {
+
+        $array = null;  // value not found
+
         break;
       }
 
@@ -104,6 +107,26 @@ if (! function_exists('config')) {
 }
 
 
+if (! function_exists('constants')) {
+  /**
+   * Gets the constants of a class
+   *
+   * @param  string $class_name
+   * @return array|null
+   */
+  function constants(string $class_name)
+  {
+    try {
+      return (new ReflectionClass( $class_name ))->getConstants();
+    }
+    catch (\ReflectionException $e){}
+    catch (\Exception $e){}
+
+    return null;
+  }
+}
+
+
 if (! function_exists('dd')) {
   /**
    * Call pr() and die() the script
@@ -123,16 +146,15 @@ if (! function_exists('dd')) {
 
 if (! function_exists('error')) {
   /**
-   * @param  string $report_key
-   * @param  int $code
-   * @param  array $replaces
-   * @return array
+   * @param  string $key
+   * @param  int    $index
+   * @param  array  $replaces
+   * @param  array  $info
+   * @return \Orcses\PhpLib\Result
    */
-  function error(string $report_key, $code, $replaces = [])
+  function error(string $key, int $index, array $replaces = null, array $info = null)
   {
-    $code = $replaces ? [$code, $replaces] : $code;
-
-    return [$report_key, $code];
+    return \Orcses\PhpLib\Result::error( $key, $index, $replaces, $info );
   }
 }
 
@@ -392,26 +414,16 @@ if (! function_exists('safe_call')) {
 
 if (! function_exists('success')) {
   /**
-   * @param  string $report_key
+   * @param  string $key
    * @param  array $info
    * @param  array $replaces
    * @param  int $index
    * @throws \Orcses\PhpLib\Exceptions\InvalidArgumentException
-   * @return array
+   * @return \Orcses\PhpLib\Result
    */
-  function success(string $report_key, array $info = [], array $replaces = null, int $index = null)
+  function success(string $key, int $index, array $replaces = null, array $info = null)
   {
-    if( ! report()->has( $report_key )){
-      throw new \Orcses\PhpLib\Exceptions\InvalidArgumentException(
-        "Report Key '{$report_key}' does not exist"
-      );
-    }
-
-    $code = $index > 0 ? "0{$index}" : 0;
-
-    $code = $replaces ? [$code, $replaces] : $code;
-
-    return [$report_key, $code, (array) $info];
+    return \Orcses\PhpLib\Result::success( $key, $index, $replaces, $info );
   }
 }
 

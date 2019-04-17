@@ -11,15 +11,15 @@ use Orcses\PhpLib\Interfaces\Auth\Authenticatable;
 
 final class Auth
 {
-  const INV_CREDENTIALS = 1;
+  const INV_CREDENTIALS = '01';
 
-  const NOT_AUTHORIZED = 2;
+  const NOT_AUTHORIZED = '02';
 
-  const ERROR_DEFAULT = 3;
+  const ERROR_DEFAULT = '03';
 
-  const THROTTLE_DELAY = 4;
+  const THROTTLE_DELAY = '04';
 
-  const INVALID_TOKEN = 5;
+  const INVALID_TOKEN = '05';
 
 
   protected static $replaces = [
@@ -48,32 +48,18 @@ final class Auth
 
 
   /**
-   * @param array $replaces
+   * @param array  $replaces
+   * @param string $index
    * @return array
    */
-  public static function success($replaces = [])
+  public static function success($replaces = [], $index = '01')
   {
     $info = ['user' => self::user()->toArray()];
 
-    return success( report()::ACCESS, $info, $replaces);
+    return success( report()::ACCESS, $index, $replaces, $info );
   }
 
 
-  /*public static function error(int $code)
-  {
-    if( ! array_key_exists($code, self::$errors)){
-      $code = 3;
-    }
-
-    [$http_code, $message] = self::$errors[ $code ];
-
-    if(in_array($code, self::$replaces)){
-
-      $message = Str::replaces($message, ['more_info' => self::moreInfo($code)]);
-    }
-
-    return [$http_code, $message];
-  }*/
   public static function error($code, $replaces = [])
   {
     if(in_array($code, self::$replaces) && $more_info = self::moreInfo($code)){
@@ -86,13 +72,13 @@ final class Auth
 
 
   /**
-   * @param  int $code
+   * @param  $code
    * @return array
    */
-  protected static function moreInfo(int $code)
+  protected static function moreInfo($code)
   {
     $info = [
-      5 => [
+      '05' => [
         'token_error', ($error = self::getTokenError()) ? $error . '. Please, log in to continue' : ''
       ]
     ];

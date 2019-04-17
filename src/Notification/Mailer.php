@@ -6,9 +6,10 @@ namespace Orcses\PhpLib\Notification;
 use Orcses\PhpLib\Files\File;
 use Orcses\PhpLib\Interfaces\Mail\Mailable;
 use Orcses\PhpLib\Interfaces\Mail\MailClient;
-use Orcses\PhpLib\Exceptions\InvalidFileException;
-use Orcses\PhpLib\Exceptions\FileNotFoundException;
 use Orcses\PhpLib\Exceptions\InvalidArgumentException;
+use Orcses\PhpLib\Exceptions\Files\InvalidFileException;
+use Orcses\PhpLib\Exceptions\Base\FileNotFoundException;
+use Orcses\PhpLib\Utility\Arr;
 
 
 class Mailer implements Mailable
@@ -228,9 +229,13 @@ class Mailer implements Mailable
   {
     $error = $this->getError();
 
-    $sender = "['" . current($this->sender) ."': ". key($this->sender) . "]";
+    [$sender_email, $sender_name] = Arr::keyValue( $this->sender );
 
-    $recipient = "['" . current($this->recipient) ."': ". key($this->recipient) . "]";
+    $sender = "['{$sender_name}': {$sender_email}]";
+
+    [$recipient_email, $recipient_name] = Arr::keyValue( $this->recipient );
+
+    $recipient = "['{$recipient_email}': {$recipient_name}]";
 
     $attempt_info = "{$sender} attempted send to {$recipient}";
 

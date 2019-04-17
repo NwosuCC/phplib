@@ -1016,6 +1016,36 @@ class MysqlQuery extends Query {
   }
 
 
+  protected function nullClause(string $column, bool $not = false)
+  {
+    $column = $this->add_quotes_Columns($column);
+    pr(['tmp' => __FUNCTION__, '$not' => $not, '$column' => $column, '$where' => $this->where, '$this->wheres' => $this->wheres]);
+
+    $not = $not ? '!' : '';
+
+    if( $this->wheres ) {
+      $this->wheres[] = "AND {$not} isnull({$column})";
+    }
+    else{
+      $this->where ? $this->where .= ' AND' : $this->where = '';
+
+      $this->where .= " {$not} isnull({$column})";
+    }
+  }
+
+
+  public function whereNull($column)
+  {
+    $this->nullClause( $column );
+  }
+
+
+  public function whereNotNull($column)
+  {
+    $this->nullClause( $column, true );
+  }
+
+
   public function where($column, $operator = null, $value = null)
   {
     $this->where = $this->orWhere = null;
@@ -1032,16 +1062,12 @@ class MysqlQuery extends Query {
 
     foreach($columns_values as $column => $value){
 
-//      if($is_OR_value = is_numeric($column) and is_array($value)){
       if($join = static::isLogicOperator($column)){
-//        $where_or[$join][] = trim( $this->orWhere([$column => $value])->getOrWhere() );
-
-//        $where_or[] = trim( $this->orWhere([$column => $value])->getOrWhere() );
 
         $where = $this->orWhere([$column => $value])->getOrWhere();
 
-//        $where_or[] = trim( Str::stripLeadingChar( $where, 'OR'));
         $where_or[] = trim($where);
+
         pr(['lgc' => __FUNCTION__, 'aftr recurse $where' => $where, '$where_or' => $where_or]);
       }
       else {

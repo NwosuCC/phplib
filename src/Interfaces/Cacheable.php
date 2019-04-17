@@ -24,5 +24,14 @@ interface Cacheable
    */
   public static function store(string $key, string $value, int $expiration = 0);
 
-  
+
+  /**
+   * Expires the stored token via its key
+   *
+   * @param string  $key
+   * @return string
+   */
+  public static function expire(string $key);
+
+
 }

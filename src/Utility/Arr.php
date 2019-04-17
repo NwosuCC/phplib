@@ -64,7 +64,7 @@ class Arr
     else {
       foreach($keys as $i => $value){
         if(is_array($value)){
-          list($value, $keys[ $i ]) = [ key($value), current($value) ];
+          list($value, $keys[ $i ]) = Arr::keyValue( $value );
         }
 
         $old_keys[ $i ] = $value;
@@ -107,7 +107,6 @@ class Arr
 
   public static function each(array $values, $callback, ...$arguments)
   {
-
     return array_map(function($value) use ($callback, $arguments){
 
       return call_user_func($callback, $value, ...$arguments);
@@ -121,12 +120,19 @@ class Arr
    * @param $array
    * @return array
    */
-  public static function unwrap(array $array){
+  public static function unwrap(array $array)
+  {
     if(count($array) === 1 && isset($array[0]) && is_array($array[0])){
       $array =  Arr::unwrap($array[0]);
     }
 
     return $array;
+  }
+
+
+  public static function keyValue(array $value)
+  {
+    return [ key($value), current($value) ];
   }
 
 
@@ -143,7 +149,8 @@ class Arr
    * @param $array
    * @return bool
    */
-  public static function isIndexedArray(array $array){
+  public static function isIndexedArray(array $array)
+  {
     $array_keys = array_keys($array);
 
     $numeric_keys = static::where( $array_keys, 'is_numeric');
@@ -152,11 +159,14 @@ class Arr
   }
 
 
-  public static function toDotNotation(array $values){
+  public static function toDotNotation(array $values)
+  {
     $flat_array = [];
 
     foreach($values as $key => $value){
+
       if(is_array($value) && ! static::isIndexedArray($value)){
+
         foreach(static::toDotNotation($value) as $last_key => $last_value){
           $flat_array[ $key.'.'.$last_key ] = $last_value;
         }
@@ -170,12 +180,14 @@ class Arr
   }
 
 
-  public static function get(array $array, $key){
+  public static function get(array $array, $key)
+  {
     return arr_get($array, $key);
   }
 
 
-  public static function pull(array $array, $keys){
+  public static function pull(array $array, $keys)
+  {
     $is_array = is_array($keys);
 
     $selected = [];

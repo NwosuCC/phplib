@@ -4,8 +4,10 @@ namespace Orcses\PhpLib;
 
 
 use Closure;
-use Exception;
 use ReflectionClass;
+use ReflectionException;
+use Orcses\PhpLib\Exceptions\Base\BuildException;
+
 
 class Container
 {
@@ -13,6 +15,8 @@ class Container
   protected $instances = [];
 
   protected $resolved = [];
+
+  protected $error;
 
 
   /**
@@ -55,7 +59,7 @@ class Container
    */
   public function make($abstract, $parameters = [])
   {
-//    pr(['usr' => __FUNCTION__, '000 $abstract' => $abstract, 'is resolved' => array_key_exists($abstract, $this->resolved)]);
+    pr(['usr' => __FUNCTION__, '000 $abstract' => $abstract, 'is resolved' => array_key_exists($abstract, $this->resolved)]);
     if ( ! array_key_exists($abstract, $this->resolved)) {
 
       if($concrete = $this->resolve( $this->get($abstract), $parameters )){
@@ -65,7 +69,7 @@ class Container
 
       $this->set($abstract, $concrete);
     }
-//    pr(['usr' => __FUNCTION__, '111 $abstract' => $abstract, '$concrete' => get_class($this->resolved[ $abstract ])]);
+    pr(['usr' => __FUNCTION__, '111 $abstract' => $abstract, '$concrete' => get_class($this->resolved[ $abstract ])]);
 
     return $this->resolved[ $abstract ];
   }
@@ -87,13 +91,22 @@ class Container
 
 
   /**
+   * @return string
+   */
+  public function getError()
+  {
+    return $this->error;
+  }
+
+
+  /**
    * Resolves a single class
    *
    * @param $concrete
    * @param $parameters
    *
    * @return mixed|object
-   * @throws Exception
+   * @throws BuildException
    */
   protected function resolve($concrete, $parameters)
   {
@@ -103,17 +116,27 @@ class Container
       return $concrete($this, $parameters);
     }
 
-    $reflector = new ReflectionClass($concrete);
+    try {
+      $reflector = new ReflectionClass($concrete);
 //    pr(['usr' => __FUNCTION__, '$reflector' => $reflector, 'isInstantiable' => $reflector->isInstantiable()]);
+    }
+    catch (ReflectionException $e){
+      pr(['usr' => __FUNCTION__, '$e' => $e->getMessage()]);
+
+      throw new BuildException( $e->getMessage() );
+    }
 
     // check if class is instantiable
     if ( ! $reflector->isInstantiable()) {
-      throw new Exception("Class {$concrete} is not instantiable");
+      $this->error = "Class {$concrete} is not instantiable";
+//      pr(['usr' => __FUNCTION__, 'error 111' => $this->error]);
+
+      throw new BuildException( $this->error );
     }
 
     // get class constructor
     $constructor = $reflector->getConstructor();
-//    pr(['usr' => __FUNCTION__, '$constructor' => $constructor]);
+    pr(['usr' => __FUNCTION__, '$constructor' => $constructor]);
 
     if (is_null($constructor)) {
       // get new instance from class
@@ -134,19 +157,24 @@ class Container
 
 
   /**
-   * resolve single method
+   * Resolves a class method
    *
    * @param $concrete
    * @param $method
    *
    * @return mixed|object
-   * @throws Exception
+   * @throws BuildException
    */
 //  public function resolveMethod($concrete, $method, array $arguments = [])
   public function resolveMethod($concrete, $method)
   {
-    $reflector = new \ReflectionMethod($concrete, $method);
+    try {
+      $reflector = new \ReflectionMethod($concrete, $method);
+    }
+    catch (ReflectionException $e){
 
+      throw new BuildException( $e->getMessage() );
+    }
 //    $method_name = $reflector->getShortName();
 //    $method_closure = $reflector->getClosure($concrete);
 //    pr(['$method name', $method_name, '$method_closure', $method_closure]);
@@ -169,7 +197,7 @@ class Container
    * @param $parameters
    *
    * @return array
-   * @throws Exception
+   * @throws BuildException
    */
 //  public function getDependencies($parameters, array $arguments = [])
   public function getDependencies($parameters)
@@ -209,7 +237,7 @@ class Container
           $dependencies[] = $parameter->getDefaultValue();
         }
         else {
-          throw new Exception("Can not resolve class dependency {$parameter->name}");
+          throw new BuildException("Could not resolve class dependency {$parameter->name}");
         }
       }
       else {

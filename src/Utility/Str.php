@@ -5,6 +5,29 @@ namespace Orcses\PhpLib\Utility;
 
 class Str
 {
+  protected static $non_printable_chars = [];
+
+  protected static $error;
+
+
+  public static function getError()
+  {
+    $error = static::$error;
+
+    return (static::$error = null) ?: $error;
+  }
+
+
+  public static function getNonPrintableChars()
+  {
+    if( ! static::$non_printable_chars){
+      static::$non_printable_chars = array_map('chr', range(0, 31));
+    }
+
+    return static::$non_printable_chars;
+  }
+
+
   /**
    * Catches any single quote that is NOT already escaped
    * @param string $value
@@ -117,6 +140,30 @@ class Str
   public static function clean($string)
   {
     return trim( htmlspecialchars( stripslashes($string)));
+  }
+
+
+  public static function stripNonPrintableChars(string $value)
+  {
+    $remove_chars = static::getNonPrintableChars();
+
+    return str_replace($remove_chars, '', $value);
+  }
+
+
+  public static function safeJsonDecode(string $value, bool $assoc = true)
+  {
+    $sanitized_contents = Str::stripNonPrintableChars( $value );
+
+    $decoded_contents = json_decode( $sanitized_contents, $assoc);
+
+    if(json_last_error() === JSON_ERROR_NONE){
+      return $decoded_contents;
+    }
+
+    static::$error = json_last_error_msg();
+
+    return null;
   }
 
 

@@ -43,10 +43,10 @@ class Validator implements HandlesErrors
     'minWidth' => [],
     'password' => [],
     'required' => [],
+    'text' => [],
     // ToDO: import from old
     'xtr' => ['extraFields'],
     'chk' => ['checkbox', ['required', 'defaultValue']],
-    'txt' => ['text'],
     'url' => ['url'],
     'fil' => ['filePath'],
     'nuf' => ['numberFormat', ['way', 'toFixed']],
@@ -88,6 +88,7 @@ class Validator implements HandlesErrors
     'password' => '{field} must have at least {more_info}',
     'required' => '{field} is required',
     'size' => "{value_type} must be equal to {size}",
+    'text' => '{field} is invalid',
   ];
 
 
@@ -166,12 +167,17 @@ class Validator implements HandlesErrors
     }
 
     list($function, $arguments) = is_array($rule) ? $rule : [$rule, null];
-    pr(['usr' => __FUNCTION__, '$function' => $function, '$arguments' => $arguments, '$value 000' => $value]);
+    pr(['usr' => __FUNCTION__, '$function 1' => $function, '$arguments' => $arguments, '$value 000' => $value]);
 
     if ($function !== 'password' && ! (is_array($value) || is_object($value))) {
       $value = static::clean($value);
     }
-    pr(['usr' => __FUNCTION__, '$function' => $function, '$arguments' => $arguments, '$value 111' => $value]);
+
+    if ($function === 'confirmed'){
+      $arguments = $this->post["{$key}_confirmation"] ?? null;
+    }
+    pr(['usr' => __FUNCTION__, '$function 2' => $function, '$arguments' => $arguments, '$value 111' => $value,
+       "post {$key}_confirmation" => $this->post["{$key}_confirmation"]??'']);
 
     if($value = call_user_func([static::class, $function], $value, $arguments)){
       [$value] = $value;
@@ -479,9 +485,11 @@ class Validator implements HandlesErrors
   }
 
 
-  public function confirmed($value, $confirm_value)
+  public function confirmed($value, $value_confirmation)
   {
-    if(empty($value) or empty($confirm_value) or $value !== $confirm_value){
+    pr(['usr' => __FUNCTION__, '$value' => $value, '$value_confirmation' => $value_confirmation]);
+
+    if(empty($value) || empty($value_confirmation) || $value !== $value_confirmation){
       return null;
     }
 
@@ -594,11 +602,19 @@ class Validator implements HandlesErrors
       return null;
     }
 
+    [$string] = $string;
+
     if(filter_var($string, FILTER_VALIDATE_EMAIL) === false){
       return null;
     }
 
     return [$string];
+  }
+
+
+  public function fieldExists($field)
+  {
+    return array_key_exists($field, $this->post) ?: null;
   }
 
 

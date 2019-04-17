@@ -4,7 +4,7 @@ namespace Orcses\PhpLib;
 
 
 use Exception;
-use Orcses\PhpLib\Exceptions\FileNotFoundException;
+use Orcses\PhpLib\Exceptions\Base\FileNotFoundException;
 
 class Response
 {
@@ -77,7 +77,7 @@ class Response
   {
     [$http_code, $data] = $result->getResponseData();
 
-    $response = new static($http_code, $data);
+    $response = new static( (int) $http_code, $data );
 
     $response->packaged = true;
 

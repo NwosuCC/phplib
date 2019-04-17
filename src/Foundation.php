@@ -2,17 +2,16 @@
 
 namespace Orcses\PhpLib;
 
-use Error;
 use Exception;
 use Dotenv\Dotenv;
-use Orcses\PhpLib\Utility\Arr;
-use Orcses\PhpLib\Exceptions\FileNotFoundException;
-use Orcses\PhpLib\Exceptions\ClassNotFoundException;
+use Orcses\PhpLib\Exceptions\Base\FileNotFoundException;
 
 
 class Foundation
 {
   protected $container;
+
+  protected $error;
 
   protected $providers = [];
 
@@ -149,18 +148,16 @@ class Foundation
   // ToDo: create and use facades (like in App::make()) instead of full class namespaces
   public function build(string $class_name)
   {
-    try {
-      return $this->container->make( $class_name );
-    }
-    catch (Error $e){}
-    catch (Exception $e){}
+    return $this->container->make( $class_name );
+  }
 
-    if( ! empty($e)){
-      // --test ToDo: remove this
-      if(app()::isLocal()){ dd('build Exception for ', $class_name, $e->getMessage()); }
 
-      throw new ClassNotFoundException( $class_name );
-    }
+  /**
+   * @return mixed
+   */
+  public function getError()
+  {
+    return $this->error;
   }
 
 

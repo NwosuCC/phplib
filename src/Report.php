@@ -46,16 +46,6 @@ class Report
   }
 
 
-  /**
-   * Lets the developer set the Welcome message
-   * @param string $message
-   */
-  public static function welcome(string $message)
-  {
-    self::$REPORTS[ self::ACCESS ]['success'][1] = $message;
-  }
-
-
   protected static $REPORTS = [
 
     self::PING => [

@@ -3,12 +3,13 @@
 namespace Orcses\PhpLib;
 
 
+use Net\Middleware;
+use Orcses\PhpLib\Utility\FileUtil;
 use RuntimeException;
 use Orcses\PhpLib\Utility\Arr;
 use Orcses\PhpLib\Access\Auth;
 use Orcses\PhpLib\Models\Model;
 use Orcses\PhpLib\Routing\Router;
-use Orcses\PhpLib\Middleware\Middleware;
 use Orcses\PhpLib\Exceptions\InvalidArgumentException;
 use Orcses\PhpLib\Exceptions\Routes\InvalidRouteActionException;
 
@@ -177,7 +178,7 @@ final class Application extends Foundation
     if($target instanceof \Closure){
 
       $output = $target->call($this, $arguments);
-      pr(['usr' => __FUNCTION__, '$output 000' => $output, '$output class' => is_object($output) ? get_class($output) : '']);
+      pr(['usr' => __FUNCTION__, '$output Closure' => $output, '$output class' => is_object($output) ? get_class($output) : '']);
 
       if( is_a($output,Response::class)){
         // Already packaged; ready to send
@@ -190,21 +191,16 @@ final class Application extends Foundation
 //      }
     }
     else {
-      $dependencies = [];
+      [$controller, $method] = $this->controller->getClassAndMethod($target);
 
-//      try {
-        [$controller, $method] = $this->controller->getClassAndMethod($target);
+      // Resolve controller from DI Container
+      $controller_class = $this->controller->makeInstanceFor($controller);
+      pr(['usr' => __FUNCTION__, '$controller' => $controller, '$method' => $method]);
 
-        // Resolve controller from DI Container
-        $controller_class = $this->controller->makeInstanceFor($controller);
-
-        // Resolve controller method from DI Container
-        /** @var \ReflectionMethod $reflectorMethod */
-        [$reflectorMethod, $dependencies] = $this->container->resolveMethod($controller_class, $method);
+      // Resolve controller method from DI Container
+      /** @var \ReflectionMethod $reflectorMethod */
+      [$reflectorMethod, $dependencies] = $this->container->resolveMethod($controller_class, $method);
       pr(['usr' => __FUNCTION__, '$controller_class' => get_class($controller_class)]);
-//      }
-//      catch(ReflectionException $e){}
-//      catch(Exception $e){}
 
       if( ! empty($e)){
         throw new InvalidRouteActionException( $target );
@@ -213,32 +209,26 @@ final class Application extends Foundation
       // Format Dependencies
       foreach ($dependencies as $parameter_name => &$dependency){
 
-        if(is_a($dependency, Request::class)){
+        if(is_subclass_of($dependency, Request::class)){
           /**@var Request $dependency */
 
-          // Authorize request
-          if(method_exists($dependency, 'authorize') && ! $dependency->authorize()){
+          // Authorize request, else, abort
+          if(method_exists($dependency, 'authorize')){
 
-            // ToDo: use generic response(403)->message();
-            $output = Auth::error(Auth::NOT_AUTHORIZED);
-            break;
+            $request->authorizeWith( $dependency->authorize() );
           }
 
-          // Validate request
+          // Validate request, else, abort
           if(method_exists($dependency, 'rules')){
 
             $request->validateWith( $dependency->rules() );
-            pr(['usr' => __FUNCTION__,'$input 111' => $request->input(), '$request->errors()' => $request->errors()]);
-
-            if($output = $request->errors()){
-              break;
-            }
           }
+          pr(['usr' => __FUNCTION__,'$input 111' => $request->input(), '$request->errors()' => $request->errors()]);
 
           // Transform request
+          // ToDo: implement this, or use middleware
           if(method_exists($dependency, 'transform')){
 
-            // ToDo: implement this
 //            $request->transformWith( $dependency->transform() );
           }
 
@@ -265,7 +255,9 @@ final class Application extends Foundation
         $output = $reflectorMethod->invokeArgs($controller_class, $dependencies);
       }
 
-      $result = Result::prepare($output);
+      $result = is_a($output,Result::class)
+        ? $output
+        : Result::prepare($output);  // ToDo: remove this
     }
 
     pr(['usr' => __FUNCTION__, '$result' => $result ?? '']);
@@ -275,8 +267,12 @@ final class Application extends Foundation
   }
 
 
-  protected function setAppNamespace(){
-    $composer = json_decode(file_get_contents($this->baseDir() .'/composer.json'), true);
+  protected function setAppNamespace()
+  {
+    if( ! $composer = FileUtil::loadJsonResource($this->baseDir() .'/composer.json')){
+
+      throw new RuntimeException("Please, cross-check 'composer.json' for any errors");
+    }
 
     foreach ((array) Arr::get($composer, 'autoload.psr-4') as $namespace => $path) {
 

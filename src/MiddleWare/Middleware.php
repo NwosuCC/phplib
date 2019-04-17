@@ -3,31 +3,39 @@
 namespace Orcses\PhpLib\Middleware;
 
 
-use Closure;
+use Orcses\PhpLib\Utility\Arr;
 use RuntimeException;
 use Orcses\PhpLib\Request;
 use Orcses\PhpLib\Exceptions\InvalidArgumentException;
 
 
-abstract class Middleware
+class Middleware
 {
-  protected static $middleware = [
-    'auth' => \Orcses\PhpLib\Access\Session::class,
-    'auth.api' => \Orcses\PhpLib\Middleware\Auth\Api::class,
-  ];
+  /** @var static */
+  protected static $instance;
+
+  protected $middleware = [];
+
+  protected $middlewareGroup = [];
 
 
-  // Implemented in sub-classes
-  abstract public function handle(Request $request, Closure $next);
-
-
-  public static function get(string $key)
+  protected static function instance()
   {
-    if( ! array_key_exists($key, static::$middleware)){
-      throw new InvalidArgumentException("Middleware '{$key}' does not exist");
+    if( ! static::$instance){
+      static::$instance = app()->make( static::class );
     }
 
-    return static::$middleware[ $key ];
+    return static::$instance;
+  }
+
+
+  public function getFromGroup(string $key)
+  {
+    if( ! is_null($middleware = Arr::get( $this->middlewareGroup, $key)) ){
+      return $middleware;
+    }
+
+    throw new InvalidArgumentException("Middleware '{$key}' does not exist");
   }
 
 
@@ -35,7 +43,13 @@ abstract class Middleware
   {
     $group = (array) $group;
 
-    $middleware_group = static::buildGroup( $group );
+    $class = static::instance();
+
+    $request_middleware = array_unique(
+      array_merge( $class->middleware, $class->getMiddlewareList( $group ) )
+    );
+
+    $middleware_group = $class->buildGroup( $request_middleware );
 
     foreach($middleware_group as [$middleware, $next]){
 
@@ -46,14 +60,15 @@ abstract class Middleware
   }
 
 
-  protected static function buildGroup(array $group)
+  protected function buildGroup(array $request_middleware)
   {
     $middleware_group = [];
 
     $n = 2;
-    while($key = array_pop($group) and $n--){
 
-      $middleware = static::getClass( $key );
+    while($class_name = array_pop($request_middleware) and $n--){
+
+      $middleware = $this->getClass( $class_name );
 
       if( empty($next)){
         $next = function($request){ return $request; };
@@ -73,20 +88,45 @@ abstract class Middleware
   }
 
 
-  protected static function getClass(string $key)
+  protected function getClass(string $class_name)
   {
-    $class_name = in_array($key, static::$middleware) ? $key : static::get($key);
-
     $middleware = app()->make( $class_name );
 
-    if( ! $middleware || ! is_a($middleware,static::class)){
+    if( ! $middleware || ! is_a($middleware,self::class)){
 
       throw new RuntimeException(
-        "Middleware class for '{$key}' must extend the base class " . static::class
+        "Middleware class '{$middleware}' must extend the base class " . static::class
       );
     }
 
     return $middleware;
+  }
+
+
+  protected function getMiddlewareList(array $middleware_aliases)
+  {
+    $middleware_group = [];
+
+    foreach ($middleware_aliases as $name){
+      if( empty($name)){
+        continue;
+      }
+
+      if(in_array($name, $this->middleware)){
+        $middleware_group[] = $name;
+      }
+      elseif( ! is_array($middleware = static::getFromGroup( $name ))){
+        $middleware_group[] = $middleware;
+      }
+      else {
+        // Flatten the array and pick all its values
+        $middleware = array_values( Arr::toDotNotation( $middleware ));
+
+        $middleware_group = array_merge( $middleware_group, $middleware );
+      }
+    }
+
+    return $middleware_group;
   }
 
 

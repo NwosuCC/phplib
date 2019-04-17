@@ -1,10 +1,12 @@
 <?php
+
 namespace Orcses\PhpLib;
 
 
 use Orcses\PhpLib\Utility\Arr;
 use Orcses\PhpLib\Access\Auth;
 use Orcses\PhpLib\Routing\Router;
+use Orcses\PhpLib\Utility\FileUtil;
 use Orcses\PhpLib\Cache\DatabaseCache;
 use Orcses\PhpLib\Traits\ValidatesRequest;
 
@@ -167,9 +169,8 @@ class Request
     // ToDo: use the files content
     $this->files = ( !empty($_FILES)) ? $_FILES : [];
 
-    $this->input = json_decode( file_get_contents("php://input"),true);
+    if( ! $this->input = FileUtil::loadJsonResource( "php://input" ) ?: []){
 
-    if( ! $this->input){
       if( ! empty($_POST)){
         $web_space = true;
         $this->input = $_POST;
@@ -191,6 +192,20 @@ class Request
   }
 
 
+  public function authorizeWith($authorized)
+  {
+    if(is_callable($authorized)){
+      $authorized = call_user_func( $authorized );
+    }
+
+    if( ! $authorized){
+      $this->abort(
+        Auth::error(Auth::NOT_AUTHORIZED )
+      );
+    }
+  }
+
+
   public function transformWith(array $transform)
   {
     //
@@ -203,7 +218,7 @@ class Request
 
     foreach($validated as $key => $value){
       // Validated input/files replace the original raw input/files
-      // The original values are still stored in $this->original prop
+      // The original values are still stored in the $this->original prop
 
       array_key_exists($key, $this->files())
         ? $this->files[ $key ] = $value
@@ -211,7 +226,12 @@ class Request
     }
 
     if($errors){
-      $this->errors = [report()::VALIDATION, 1, $errors];
+      // Abort the request
+      $this->errors = [ report()::VALIDATION, 1, $errors ];
+
+      $this->abort(
+        error( report()::VALIDATION, 1, [], $errors )
+      );
     }
 
     $this->pinCurrentState();
@@ -236,20 +256,20 @@ class Request
 
   /**
    * Abort the request if any unexpected error occurs e.g Controller not found (???)
-   * @param array $error_code   If true, logout User. $error_code should be [$http_code, $message]
-   * @param bool $log_out
+   * @param Result $error_result     Error compiled by Result::class
+   * @param bool   $log_out   If true, logout User
    */
-  public static function abort(array $error_code = [], bool $log_out = false)
+  public static function abort(Result $error_result = null, bool $log_out = false)
   {
-    if( ! $error_code){
-      $error_code = [report()::APP, 2];
+    if( ! $error_result){
+      $error_result = error( report()::APP, 2 );
     }
 
-    if($log_out && $error_code[0] === report()::ACCESS){
+    if($log_out && $error_result->getKey() === report()::ACCESS){
       Auth::logout();
     }
 
-    Response::get( $error_code )->send();
+    Response::package( $error_result )->send();
   }
 
 

@@ -10,6 +10,7 @@ use Orcses\PhpLib\Interfaces\Modelable;
 use Orcses\PhpLib\Traits\HasRelationship;
 use Orcses\PhpLib\Database\Query\MysqlQuery;
 use Orcses\PhpLib\Database\Connection\MysqlConnection;
+use Orcses\PhpLib\Exceptions\InvalidOperationException;
 use Orcses\PhpLib\Database\Connection\ConnectionManager;
 use Orcses\PhpLib\Exceptions\Model\AttributeNotFoundException;
 use Orcses\PhpLib\Exceptions\Model\TableNotSpecifiedException;
@@ -40,17 +41,21 @@ abstract class Model
 
   protected $dates = [];
 
+  protected static $_CREATED_AT = 'created_at';
+
+  protected static $_UPDATED_AT = 'updated_at';
+
+  protected static $_DELETED_AT;
+
   /**
    * There must be exactly two timestamp columns: [0] for create, [1] for update
    */
-  protected static $timestamps = [
-    'created_at', 'updated_at'
-  ];
+  protected static $timestamps = [];
 
 
-  private $connection;
+  protected $connection;
 
-  private $table_columns = [];
+  protected $table_columns = [];
 
 
   protected $pseudo_object, $lazy_load = false;
@@ -67,7 +72,7 @@ abstract class Model
 
   protected $query;
 
-  protected $result = false;
+  protected $result = false, $with_deleted = false;
 
   protected $wheres = [], $orWheres = [], $order, $limit, $tempSql;
 
@@ -139,10 +144,18 @@ abstract class Model
   }
 
 
+  protected function cacheState()
+  {
+    $this->result = true;
+
+    return $this;
+  }
+
+
   /**
    * Returns a fresh model instance
    */
-  public function refresh()
+  public function refreshState()
   {
     $this->result = null;
 
@@ -198,8 +211,38 @@ abstract class Model
   }
 
 
+  protected function dateTimeObject(string $date_time = null)
+  {
+    return $date_time ? Carbon::parse($date_time): Carbon::now();
+  }
+
+
+  protected function dateTimeString(Carbon $date_time = null)
+  {
+    return ($date_time ?: Carbon::now())->toDateTimeString();
+  }
+
+
+  protected function setTimestamps()
+  {
+    if($created_at = static::$_CREATED_AT ?? null){
+      static::$timestamps[0] = $created_at;
+    }
+
+    if($updated_at = static::$_UPDATED_AT ?? null){
+      static::$timestamps[1] = $updated_at;
+    }
+  }
+
+
   protected function updateTimestamps()
   {
+    if( ! static::$timestamps){
+      $this->setTimestamps();
+    }
+
+    $now = $this->dateTimeString();
+
     foreach(static::$timestamps as $i => $timestamp){
 
       $table_columns = $this->exists() ? $this->attributes : $this->table_columns;
@@ -211,14 +254,23 @@ abstract class Model
           continue;
         }
 
-        $this->attributes[ $timestamp ] = Carbon::now();
+        $this->attributes[ $timestamp ] = $now;
+      }
+    }
+
+    if( $this->canBeDeleted() ){
+      // Also, set deleted_at if it already has a value (set from delete() method)
+      $deleted_at = static::$_DELETED_AT ?? 'deleted_at';
+
+      if($this->{ $deleted_at }){
+        $this->attributes[ $deleted_at ] = $now;
       }
     }
 
     return $this;
   }
 
-
+  
   public function hasAttribute($key)
   {
     return array_key_exists($key, $this->attributes);
@@ -240,7 +292,12 @@ abstract class Model
   public function getAttribute($key)
   {
     if( ! $this->hasAttribute($key)){
-      throw new AttributeNotFoundException($this->getModelName(), $key);
+
+      if( ! $this->hasTableColumn($key)){
+        throw new AttributeNotFoundException($this->getModelName(), $key);
+      }
+
+      return null;
     }
 
     // ToDo: implement ArrayAccess and Iterator to use array objects in this Model
@@ -398,7 +455,7 @@ abstract class Model
   }
 
 
-  private function getTableNameFromModel()
+  protected function getTableNameFromModel()
   {
     $model_name = Str::snakeCase( $this->getModelName() );
 
@@ -438,7 +495,13 @@ abstract class Model
   }
 
 
-  private function getTableColumns()
+  protected function hasTableColumn($key)
+  {
+    return array_key_exists($key, $this->getTableColumns());
+  }
+
+
+  protected function getTableColumns()
   {
     if( ! $this->table_columns and ! $this->lazy_load){
 
@@ -467,13 +530,13 @@ abstract class Model
   }
 
 
-  private function getValidAttributes(array $attributes)
+  protected function getValidAttributes(array $attributes)
   {
     return array_intersect_key( $attributes, $this->getTableColumns() );
   }
 
 
-  private function setAutoIncrementColumn(string $column)
+  protected function setAutoIncrementColumn(string $column)
   {
     $this->auto_increment = $column;
   }
@@ -485,7 +548,7 @@ abstract class Model
   }
 
 
-  private function setKeyName(string $column)
+  protected function setKeyName(string $column)
   {
     $this->key = $column;
   }
@@ -508,7 +571,7 @@ abstract class Model
   }
 
 
-  private function getStringKeyNameFormat()
+  protected function getStringKeyNameFormat()
   {
     $model_name = Str::snakeCase( $this->getModelName() );
 
@@ -516,7 +579,7 @@ abstract class Model
   }
 
 
-  private function setStringKeyName(string $column)
+  protected function setStringKeyName(string $column)
   {
     // If the developer has specified a string_key_name via the getStringKeyName() in the model, use it instead
     if($string_key_name = $this->getStringKeyName()){
@@ -535,6 +598,10 @@ abstract class Model
 
   public function getStringKey()
   {
+    if( ! $this->string_key){
+      $this->string_key = $this->getStringKeyName();
+    }
+
     return $this->getAttribute( $this->string_key );
   }
 
@@ -575,21 +642,24 @@ abstract class Model
   }
 
 
-  public function orderBy( string $column, string $direction = 'ASC'){
+  public function orderBy( string $column, string $direction = 'ASC')
+  {
     $this->query()->orderBy($column, $direction);
 
     return $this;
   }
 
 
-  public function limit( int $length, int $start = 0 ){
+  public function limit( int $length, int $start = 0 )
+  {
     $this->query()->limit($length, $start);
 
     return $this;
   }
 
 
-  public static function all() {
+  public static function all()
+  {
     ($model = static::instance())
       ->query()
       ->whereRaw(['query' => '1', 'values' => []]);
@@ -598,16 +668,50 @@ abstract class Model
   }
 
 
+  protected function canBeDeleted(bool $throw = false)
+  {
+    pr(['usr' => __FUNCTION__, '$_DELETED_AT' => static::$_DELETED_AT, '$throw' => $throw, 'cols' => $this->table_columns]);
+
+    $column = static::$_DELETED_AT;
+
+    $can_be_deleted = $column && array_key_exists( $column, $this->getTableColumns() );
+
+    if( ! $can_be_deleted && $throw){
+      throw new InvalidOperationException(
+        "Cannot call delete() on a model that does not have a 'deleted_at' column"
+      );
+    }
+
+    return $can_be_deleted;
+  }
+
+
+  public function withDeleted()
+  {
+    $this->with_deleted = true;
+
+    return $this;
+  }
+
+
+  public function withoutDeleted()
+  {
+    if( $this->canBeDeleted() && ! $this->with_deleted ){
+
+      $this->query()->whereNull( static::$_DELETED_AT );
+    }
+
+    return $this->query();
+  }
+
+
   public function get(){
     if( ! $this->result){
-      $this->result = true;
 
-      $rows = $this->query()->select()->all();
+      $this->rows = $this->withoutDeleted()->select()->all();
+//      $this->rows = new \ArrayObject( $this->query()->select()->all() );
 
-//      $this->rows = new \ArrayObject( $rows );
-      $this->rows = $rows;
-
-      $this->hydrate();
+      $this->hydrate()->cacheState();
     }
 
     return $this;
@@ -704,6 +808,8 @@ abstract class Model
     foreach($this->rows as &$row){
       $row = $this->newFromExisting( (array) $row );
     }
+
+    return $this;
   }
 
 
@@ -755,8 +861,8 @@ abstract class Model
   }
 
 
-  // ToDo: use uuid()
-  private function setNewStringId()
+  // ToDo: use uuid() - NOTE: Not necessary, developer should take care of this
+  protected function setNewStringId()
   {
     if($string_key_name = $this->getStringKeyName()){
 
@@ -770,7 +876,7 @@ abstract class Model
   }
 
 
-  private function performInsert()
+  protected function performInsert()
   {
     $this->updateTimestamps();
 
@@ -786,7 +892,7 @@ abstract class Model
   }
 
 
-  private function performUpdate()
+  protected function performUpdate()
   {
     // ToDo: remove PseudoModels and get rid of this check :: any update MUST happen with the model Key()
     if( ! $this->wheres){
@@ -799,11 +905,13 @@ abstract class Model
 
         $this->where([ $string_key_name => $this->getStringKey() ]);
       }
+//      pr(['usr' => __FUNCTION__, '$key_name' => $key_name, '$string_key_name' => $string_key_name??'']);
 
       if($this->currentSql()['where']){
         $this->limit(1);
       }
     }
+//    pr(['usr' => __FUNCTION__, 'wheres' => $this->wheres, 'where' => $this->currentSql()['where'], '$update_values' => $this->getChanges()]);
 
     if($this->currentSql()['where']){
 
@@ -812,7 +920,7 @@ abstract class Model
       if($update_values = $this->getChanges()){
         // ToDo: remove dryRun
 //        return $this->query()->dryRun()->asTransaction(function () use($update_values){
-        $updated = $this->query()->asTransaction(function () use($update_values){
+        $updated = $this->withoutDeleted()->asTransaction(function () use($update_values){
 
           return $this->query()->update( $update_values );
 
@@ -832,6 +940,7 @@ abstract class Model
     //ToDo: ...
 
     $this->fill($values);
+    pr(['usr' => __FUNCTION__, '$values' => $values, 'attributes' => $this->attributes, 'wheres' => $this->wheres]);
 
     return $this->save();
   }
@@ -846,13 +955,33 @@ abstract class Model
   }
 
 
+  public function delete()
+  {
+    if($this->canBeDeleted(true) && $this->exists()){
+      pr(['usr' => __FUNCTION__, 'exists 000' => $this->exists(), 'attributes' => $this->attributes]);
+
+      $this->setAttribute( static::$_DELETED_AT, $this->dateTimeString() );
+
+      if($this->save()){
+        pr(['usr' => __FUNCTION__, 'exists 111' => $this->exists(), 'attributes' => $this->attributes]);
+
+        return ! $this->exists = !! $this->attributes = [];
+      }
+    }
+    pr(['usr' => __FUNCTION__, 'exists 222' => $this->exists(), 'attributes' => $this->attributes]);
+
+    return null;
+  }
+
+
   public function save()
   {
     return $this->exists()
 
       ? $this->performUpdate()
 
-      : $this->setNewStringId()->performInsert();
+//      : $this->setNewStringId()->performInsert();
+      : $this->performInsert();
   }
 
 

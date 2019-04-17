@@ -3,8 +3,48 @@
 namespace Orcses\PhpLib\Utility;
 
 
-class FileSystemCopy
+class FileUtil
 {
+
+  protected static $error;
+
+
+  public static function getError()
+  {
+    $error = static::$error;
+
+    return (static::$error = null) ?: $error;
+  }
+
+
+  public static function loadResource(string $file_path)
+  {
+    if( is_file($file_path) && ! $exists = file_exists( $file_path )){
+
+      static::$error = "File not found";
+
+      return null;
+    }
+
+    return file_get_contents( $file_path );
+  }
+
+
+  public static function loadJsonResource(string $file_path, bool $assoc = true)
+  {
+    if( ! $contents = static::loadResource( $file_path )){
+      return null;
+    }
+
+    if( ! $decoded_contents = Str::safeJsonDecode( $contents, $assoc )){
+
+      static::$error = Str::getError();
+    }
+
+    return $decoded_contents;
+  }
+
+
   /**
    * @author      Aidan Lister <aidan@php.app>
    * @version     1.0.1

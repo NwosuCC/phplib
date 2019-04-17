@@ -4,15 +4,15 @@ namespace Orcses\PhpLib\Routing;
 
 
 use Exception;
-use Orcses\PhpLib\Exceptions\FileNotFoundException;
+use Orcses\PhpLib\Request;
+use Orcses\PhpLib\Utility\Arr;
+use Orcses\PhpLib\Utility\Str;
 use Orcses\PhpLib\Exceptions\InvalidArgumentException;
+use Orcses\PhpLib\Exceptions\Base\FileNotFoundException;
 use Orcses\PhpLib\Exceptions\Routes\DuplicateRoutesException;
 use Orcses\PhpLib\Exceptions\Routes\MethodNotSupportedException;
 use Orcses\PhpLib\Exceptions\Routes\DuplicateRouteNamesException;
 use Orcses\PhpLib\Exceptions\Routes\RouteNotYetRegisteredException;
-use Orcses\PhpLib\Request;
-use Orcses\PhpLib\Utility\Arr;
-use Orcses\PhpLib\Utility\Str;
 
 
 class Router
@@ -256,6 +256,7 @@ class Router
     $param_routes = [];
 
     foreach (array_reverse($uri_parts) as $i => $part){
+
       $item = ! empty($param_routes) ? $param_routes : 1234;
 
       $param_routes = [$part => $item];

@@ -28,14 +28,16 @@ trait HasApiToken
    * @param string $id The user id to embed in the token
    * @return string|null
    */
-  public function generate(string $id)
+  public function generate(string $id = null)
   {
-    $token = Token::generate( [$id], false );
+    if($id){
+      $token = Token::generate( [$id], false );
 
-    if($value = $token['value']){
+      if($value = $token['value']){
 
-      if($saved = DatabaseCache::store($token['key'], $value, $token['expiry'])){
-        return $token['value'];
+        if($saved = DatabaseCache::store($token['key'], $value, $token['expiry'])){
+          return $token['value'];
+        }
       }
     }
 
@@ -48,9 +50,9 @@ trait HasApiToken
    * @param string  $token
    * @return string|null
    */
-  public function verify(string $token)
+  public function verify(string $token = null)
   {
-    if($verified = Token::verify($token, false)) {
+    if($token && $verified = Token::verify($token, false)) {
 
       if($is_valid_token = DatabaseCache::get( $verified['key'] )){
 
@@ -58,7 +60,7 @@ trait HasApiToken
       }
     }
 
-    static::$error = Token::error();
+    static::$error = $token ? 'Token is empty' : Token::error();
 
     return null;
   }
