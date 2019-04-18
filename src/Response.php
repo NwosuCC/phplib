@@ -4,7 +4,9 @@ namespace Orcses\PhpLib;
 
 
 use Exception;
+use Orcses\PhpLib\Models\Model;
 use Orcses\PhpLib\Exceptions\Base\FileNotFoundException;
+
 
 class Response
 {
@@ -46,16 +48,32 @@ class Response
 
   /**
    * Packages a raw response object for dispatch
-   * @param array $data
-   * @return  static
+   * @param       $data
+   * @param bool  $success
+   * @param array $params   ['report_key' => '', 'code' => '', 'replaces' => '']
+   * @return static
    */
-  public function json(array $data)
+  public function json($data, bool $success = true, array $params = null)
   {
-    $code = in_array($this->http_status_code , static::$success_codes) ? '01' : 1;
+    if(is_a($data, Model::class)){
 
-    $replaces = ['message' => $this->response_message];
+      /** @var Model $data */
+      $data = $data->toArray();
+    }
 
-    return $this->get( [report()::APP, [$code, $replaces], $data] );
+    $report_key = $params['report_key'] ?? report()::APP;
+
+    $code = $params['code'] ?? '01';
+
+    $replaces = $params['replaces'] ?? ['message' => $this->response_message ?: ''];
+
+    return $this->get([$report_key, $code, $replaces, $data], $success);
+  }
+
+
+  public function error($data, array $params = null)
+  {
+    return $this->json( $data, false, $params );
   }
 
 
@@ -67,9 +85,11 @@ class Response
   }
 
 
-  public static function get(array $result)
+  public static function get(array $result, bool $success)
   {
-    return self::package( Result::prepare($result) );
+    $result = $success ? success( ...$result ) : error( ...$result );
+
+    return self::package( $result );
   }
 
 

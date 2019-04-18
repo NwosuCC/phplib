@@ -74,7 +74,7 @@ abstract class Model
 
   protected $result = false, $with_deleted = false;
 
-  protected $wheres = [], $orWheres = [], $order, $limit, $tempSql;
+  protected $where, $orWhere, $order, $limit, $tempSql;
 
   protected $rows = [], $single;
 
@@ -157,7 +157,7 @@ abstract class Model
    */
   public function refreshState()
   {
-    $this->result = null;
+    $this->result = $this->where = null;
 
     return $this;
   }
@@ -190,6 +190,21 @@ abstract class Model
     }
 
     return $this->query;
+  }
+
+
+  public function scope(string $name)
+  {
+    $scope_name = Str::titleCase( $name );
+
+    $method_name = 'scope' . ucfirst($scope_name);
+
+    if(method_exists($this, $method_name)){
+
+      call_user_func( [$this, $method_name] );
+    }
+
+    return $this;
   }
 
 
@@ -634,9 +649,25 @@ abstract class Model
   }
 
 
+  public function whereIn(string $column, array $values)
+  {
+    $this->query()->where([ $column => ['IN', $values] ]);
+
+    return $this;
+  }
+
+
   public function where($column, $operator = null, $value = null)
   {
-    $this->query()->where( $column, $operator, $value );
+    if( ! $this->where ){
+
+      $this->where = true;
+
+      $this->query()->where( $column, $operator, $value );
+    }
+    else {
+      $this->query()->andWhere( $column, $operator, $value );
+    }
 
     return $this;
   }
@@ -653,6 +684,14 @@ abstract class Model
   public function limit( int $length, int $start = 0 )
   {
     $this->query()->limit($length, $start);
+
+    return $this;
+  }
+
+
+  public function sun(string $column)
+  {
+    $this->query()->sun($column);
 
     return $this;
   }
@@ -707,6 +746,7 @@ abstract class Model
 
   public function get(){
     if( ! $this->result){
+      pr(['usr' => __FUNCTION__, 'result' => $this->result]);
 
       $this->rows = $this->withoutDeleted()->select()->all();
 //      $this->rows = new \ArrayObject( $this->query()->select()->all() );
@@ -721,11 +761,21 @@ abstract class Model
   /**
    * Returns all rows with only the specified columns
    * @param array $columns The columns to pick. All other columns are dropped
-   * @return $this
+   * @return array
    */
   public function only(array $columns)
   {
-    return $this->some( 'only', $columns);
+    $rows = [];
+
+    if($this->rows){
+
+      foreach ($this->rows as $row){
+        $rows[] = Arr::pickOnly($row->attributes, $columns);
+      }
+    }
+    pr(['usr' => __FUNCTION__, '$rows' => $rows]);
+
+    return $rows;
   }
 
 
@@ -740,7 +790,7 @@ abstract class Model
   }
 
 
-  protected function some(string $filter, array $columns)
+  /*protected function some(string $filter, array $columns)
   {
     $filters = [
       'only' => 'array_diff',
@@ -764,6 +814,42 @@ abstract class Model
         $row = $row->removeAttributes($drop_columns);
       }
     }
+
+    return $this;
+  }*/
+  protected function some(string $filter, array $columns)
+  {
+    $filters = [
+      'only' => 'array_diff',
+      'except' => 'array_intersect'
+//      'only' => 'array_intersect',
+//      'except' => 'array_diff'
+    ];
+
+    if( ! array_key_exists($filter, $filters)){
+      return null;
+    }
+
+    $rows = [];
+
+    if($this->rows){
+      $attributes = array_keys( $this->rows[0]->attributes );
+
+      $filter_function = $filters[ $filter ];
+
+      $drop_columns = array_values(
+        call_user_func($filter_function, $attributes, $columns)
+      );
+
+      /*foreach ($this->rows as &$row){
+        $row = $row->removeAttributes($drop_columns);
+      }*/
+
+      foreach ($this->rows as $row){
+//        $rows[] = array_combine($new_columns, $row->attributes);
+      }
+    }
+    pr(['usr' => __FUNCTION__, '$drop_columns' => $drop_columns, '$rows' => $rows]);
 
     return $this;
   }
@@ -895,7 +981,7 @@ abstract class Model
   protected function performUpdate()
   {
     // ToDo: remove PseudoModels and get rid of this check :: any update MUST happen with the model Key()
-    if( ! $this->wheres){
+    if( ! $this->where){
 
       if($key_name = $this->getKeyName()){
 
@@ -940,7 +1026,7 @@ abstract class Model
     //ToDo: ...
 
     $this->fill($values);
-    pr(['usr' => __FUNCTION__, '$values' => $values, 'attributes' => $this->attributes, 'wheres' => $this->wheres]);
+    pr(['usr' => __FUNCTION__, '$values' => $values, 'attributes' => $this->attributes, 'wheres' => $this->where]);
 
     return $this->save();
   }

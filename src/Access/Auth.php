@@ -31,8 +31,12 @@ final class Auth
 
   protected static $auth;
 
-  /** @var \Orcses\PhpLib\Models\Model $user */
-  protected $user, $bound = false;
+  /**
+   * @var \Orcses\PhpLib\Access\User | \Net\Models\User $user
+   *
+   * The injected Authenticatable or auth-bound User
+   */
+  protected $user;
 
   protected $id;
 

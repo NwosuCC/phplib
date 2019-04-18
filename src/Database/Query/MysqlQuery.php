@@ -16,17 +16,19 @@ class MysqlQuery extends Query {
   /** @var MySQLi instance */
   protected $connection;
 
-  private $table, $a_i_column;
+  protected $table, $a_i_column;
 
-  private $caller = '';
+  protected $caller = '';
 
-  private $sql, $tempSql, $doNotModify;
+  protected $sql, $tempSql, $locked;
 
-  private $wheres = [], $where, $orWhere, $order, $limit;
+  protected $columns = [];
 
-  private $sqlMethod, $multi = [], $isNewQuery = false, $assoc = false;
+  protected $wheres = [], $where, $orWhere, $order, $limit;
 
-  public  $result, $columns, $rows = [], $count = 0, $dry_run = false, $prevSql;
+  protected $sqlMethod, $multi = [], $isNewQuery = false, $assoc = false;
+
+  public  $result, $selected_columns, $rows = [], $count = 0, $dry_run = false, $prevSql;
 
 
   /**
@@ -241,6 +243,7 @@ class MysqlQuery extends Query {
 
       if($select_mode){
         list($column, $alias) = static::getColumnAliases($column);
+        pr(['usr' => __FUNCTION__, '$column' => $column, '$alias' => $alias, 'isRawQuery' => static::isRawQuery($column)]);
       }
 
       if(static::isBlank($column)){
@@ -379,6 +382,7 @@ class MysqlQuery extends Query {
     $this->where([
       $id_column => ['IN', $id_group]
     ]);
+    pr(['usr' => __FUNCTION__, '$id_column' => $id_column, '$id_group' => $id_group]);
 
     if($existing_rows = $this->select([$id_column])->asArray()->all()){
 
@@ -407,7 +411,7 @@ class MysqlQuery extends Query {
    */
   public function selectedColumns()
   {
-    return $this->columns;
+    return $this->selected_columns;
   }
 
 
@@ -448,23 +452,27 @@ class MysqlQuery extends Query {
    */
   public function getWhereClause(bool $final = true)
   {
-    pr(['tmp' => __FUNCTION__, '$this->wheres 111' => $this->wheres, '$this->>where' => $this->where, '$this->orWhere' => $this->orWhere, '$final' => $final]);
+//    pr(['usr' => __FUNCTION__, '$this->wheres 111' => $this->wheres, '$this->>where' => $this->where, '$this->orWhere' => $this->orWhere, '$final' => $final]);
+
+    $where = $this->getWhere();
 
     $orWhere = $this->getOrWhere();
 
-    $where = $this->getWhere() . ' ' . $orWhere;
+    $where = ($where || $orWhere) ? trim($where. ' ' . $orWhere) : '';
 
     if($final){
       if($orWhere){
         $this->wheres[] = $orWhere;
       }
 
-      $where = $this->wheres ? implode(' ', $this->wheres) : $where;
+      $this->wheres = array_unique( $this->wheres );
+
+      $where = trim( $this->wheres ? implode(' ', $this->wheres) : $where );
 
       $where = $where ? 'WHERE ' . $where : '';
     }
 
-    pr(['tmp' => __FUNCTION__, '$this->wheres 222' => $this->wheres, '$this->>where' => $this->where, '$this->orWhere' => $this->orWhere, '$where' => $where]);
+//    pr(['usr' => __FUNCTION__, '$this->wheres 222' => $this->wheres, '$this->>where' => $this->where, '$this->orWhere' => $this->orWhere, '$where' => $where]);
     return trim($where);
   }
 
@@ -496,9 +504,9 @@ class MysqlQuery extends Query {
    */
   protected function doNotModify()
   {
-    $doNotModify = $this->doNotModify;
+    $doNotModify = $this->locked;
 
-    return ($this->doNotModify = false) ?: $doNotModify;
+    return ($this->locked = false) ?: $doNotModify;
   }
 
 
@@ -704,7 +712,7 @@ class MysqlQuery extends Query {
           $result_set[] = $row;
         }
 
-        $this->columns = $result_set ? array_keys( (array) end($result_set) ) : [];
+        $this->selected_columns = $result_set ? array_keys( (array) end($result_set) ) : [];
       }
 
     }
@@ -1006,11 +1014,12 @@ class MysqlQuery extends Query {
     if($where = $this->getTmpWhere()){
       $this->wheres[] = $where;
     }
+    pr(['usr' => __FUNCTION__, '111 $where' => $where, '$this->wheres' => $this->wheres, '$this->>where' => $this->where]);
 
     $where = $this->where($column, $operator, $value)->getTmpWhere();
 
     $this->wheres[] = 'AND (' . trim($where) . ')';
-    pr(['tmp' => __FUNCTION__, '222 $where' => $where, '$this->wheres' => $this->wheres]);
+    pr(['usr' => __FUNCTION__, '222 $where' => $where, '$this->wheres' => $this->wheres, '$this->>where' => $this->where]);
 
     return $this;
   }
@@ -1113,6 +1122,7 @@ class MysqlQuery extends Query {
     $this->where = ($where_and) ? implode(' ', $where_and) : '';
 
     pr(['lgc' => __FUNCTION__, 'where_and 22' => $where_and, '$this->where' => $this->where]);
+    pr(['usr' => __FUNCTION__, '$this->wheres' => $this->wheres, '$this->>where' => $this->where]);
 
     return $this;
   }
@@ -1201,11 +1211,11 @@ class MysqlQuery extends Query {
   {
     if($this->multi){
       if($this->isNewQuery){
-        $this->run_multi()->fetch();
+        $this->compileSelect()->run_multi()->fetch();
       }
     }
     else {
-      $this->run()->fetch();
+      $this->compileSelect()->run()->fetch();
     }
 
     return $this->rows;
@@ -1277,21 +1287,55 @@ class MysqlQuery extends Query {
   }
 
 
-  public function select(array $columns = [])
+  protected function compileSelect()
   {
-    $columns = empty($columns) ? ['*'] : $columns;
+    pr(['usr' => __FUNCTION__, 'columns' => $this->columns]);
+    $this->columns = implode(',', array_merge( ...$this->columns ) );
 
-    $columns = $this->add_quotes_Columns( $this->escape($columns), true);
-
-    $columns = implode(',', $columns);
+    pr(['usr' => __FUNCTION__, '$this->wheres' => $this->wheres, '$this->where' => $this->where, '$this->orWhere' => $this->orWhere,
+      '$this->sql' => $this->sql, 'columns' => count($this->columns)]);
 
     $composition = [
-      'SELECT', $columns, 'FROM', $this->table(),
+      'SELECT', $this->columns, 'FROM', $this->table(),
       $this->getWhereClause(), $this->getOrder(), $this->getLimit()
     ];
 
     $this->sql = implode(' ', $composition);
-    pr(['usr' => __FUNCTION__, '$this->wheres1' => $this->wheres, '$this->sql' => $this->sql, 'columns' => count($this->columns)]);
+    pr(['usr' => __FUNCTION__, '$this->wheres' => $this->wheres, '$this->where' => $this->where, '$this->orWhere' => $this->orWhere,
+      '$this->sql' => $this->sql, 'columns' => count($this->columns)]);
+
+    $this->columns = [];
+
+    return $this;
+  }
+
+
+  public function sum(string $column)
+  {
+    $column = $this->add_quotes_Columns( $this->escape($column), true);
+
+    return "SUM({$column})|q";
+  }
+
+
+  public function selectAs(string $column, string $alias)
+  {
+    return $this->select( ["{$column} as {$alias}"] );
+  }
+
+
+  public function select(array $columns = [])
+  {
+    pr(['usr' => __FUNCTION__, 'columns 000' => $columns]);
+
+    if($this->columns && ! $columns){
+      return $this;
+    }
+
+    $columns = empty($columns) ? ['*'] : $columns;
+
+    $this->columns[] = $this->add_quotes_Columns( $this->escape($columns), true);
+    pr(['usr' => __FUNCTION__, 'columns 111' => $columns, '$this->columns' => $this->columns]);
 
     return $this;
   }
@@ -1301,7 +1345,7 @@ class MysqlQuery extends Query {
   {
     $this->where($where_values);
 
-    $this->doNotModify = $this->select()->count() > 0;
+    $this->locked = $this->select()->count() > 0;
 
     return $this;
   }
@@ -1568,7 +1612,9 @@ class MysqlQuery extends Query {
 
       $this->sql = 'DESCRIBE ' . $quoted_table_name;
 
-      $this->addTableDefinition( $table, $this->all() );
+      $this->run()->fetch();
+
+      $this->addTableDefinition( $table, $this->rows );
     }
 
     return $this->getTableDefinition( $table );
