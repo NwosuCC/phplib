@@ -24,7 +24,7 @@ class BelongsTo extends OneDimRelationship
    *
    * @return Model
    */
-  public function get()
+  public function model()
   {
     return $this->relationsQuery( $this->owner, $this->owned )
 

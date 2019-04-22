@@ -35,7 +35,7 @@ class Router
   protected $attributes = [];
 
   protected static $allowed_attributes = [
-    'middleware', 'namespace', 'prefix', 'name'
+    'middleware', 'namespace', 'prefix', 'name', 'rules'
   ];
 
   protected static $groups = [];
@@ -47,7 +47,9 @@ class Router
 
   protected static $loaded = [], $exceptions = [];
 
-  protected static $route_spaces = [ self::WEB, self::API ];
+  protected static $route_spaces = [
+    self::WEB, self::API
+  ];
 
   protected static $base_route;
 
@@ -62,7 +64,8 @@ class Router
 
   public function __construct()
   {
-    $this->id = random_bytes(11);
+//    $this->id = random_bytes(11);
+    $this->id = abs( rand(11111111111, 99999999999));
 
     self::$instance = $this;
   }
@@ -163,37 +166,99 @@ class Router
   {
     $this->file = $this->currentRouteFile();
 
+    $this->mergeGroupAttributes();
+
     static::$groups[ $this->id ] = [$this, $callback];
   }
 
 
-  protected function addAttributes(array $attributes)
+  protected function mergeGroupAttributes(array $attributes = [])
   {
-    foreach($attributes as $name => $value){
-      $this->attribute($name, $value);
+    $append = ! empty($attributes);
+
+    $attributes = $attributes ?: $this->currentGroupAttributes();
+
+    foreach($attributes as $key => $value){
+
+      $old_value = $glue = '';
+
+      if(array_key_exists($key, $this->attributes)){
+
+        $old_value = $this->attributes[ $key ];
+
+        $glue = ($key === 'namespace') ? '\\' : '';
+      }
+
+      if($key === 'middleware') {
+
+        $this->attributes[ $key ] = array_merge($old_value ?: [], (array) $value );
+
+        $this->attributes[ $key ] = array_unique( $this->attributes[ $key ] );
+      }
+      elseif( in_array($key, ['namespace', 'prefix'])){
+
+        $this->attributes[ $key ] = $append
+          ? $old_value . $glue . $value
+          : $value . $glue . $old_value;
+      }
     }
   }
 
 
-  protected function attribute(string $key, $value)
+  protected function addRouteAttributes(array $attributes)
   {
-    if( ! in_array($key, static::$allowed_attributes)){
-      $this->addException(InvalidArgumentException::class, $key, __FUNCTION__);
+    if(array_key_exists( $this->id, static::$groups )){
+
+      $this->mergeGroupAttributes( $attributes );
+    }
+    else {
+      foreach($attributes as $name => $value){
+
+        $this->attribute($name, $value);
+      }
+    }
+  }
+
+
+  protected function attribute(string $name, $value)
+  {
+    if( ! in_array($name, static::$allowed_attributes)){
+
+      $this->addException(InvalidArgumentException::class, $name, __FUNCTION__);
+
       return;
     }
 
     $array_value = is_array( $value );
 
-    foreach((array) $value as $value){
+    if($name === 'rules')
+    pr(['alg' => __FUNCTION__, '$name' => $name, '$value' => $value, '$array_value' => $array_value]);
 
-      $array_value
-        ? $this->attributes[ $key ][] = $value
-        : $this->attributes[ $key ] = $value;
+    foreach((array) $value as $key => $value){
+
+      if($name === 'rules'){
+
+        $this->validateRules([$key => $value]);
+      }
+
+      if($array_value){
+        is_numeric($key)
+          ? $this->attributes[ $name ][] = $value
+          : $this->attributes[ $name ][$key] = $value;
+
+        if($name === 'rules')
+          pr(['alg' => __FUNCTION__, 'attributes' => $this->attributes]);
+      }
+      else {
+        $this->attributes[ $name ] = $value;
+      }
 
       if($this->target){
-        $function_name = 'setRoute' . ucfirst($key);
+
+        $function_name = 'setRoute' . ucfirst($name);
 
         if(method_exists($this, $function_name)){
+
           $this->{$function_name}($value);
         }
       }
@@ -201,9 +266,22 @@ class Router
   }
 
 
-  public function uri()
+  protected function validateRules(array $rules)
   {
-    return $this->uri;
+    foreach($rules as $key => $value){
+      if(is_numeric($key)){
+
+        $error = "Route rules must have only non-numeric keys, {$key} is invalid";
+        }
+      elseif( ! is_array($value) && ! is_string($value)){
+
+        $error = "Route rules must be either regex string or an array";
+      }
+
+      if( ! empty($error)){
+        throw new InvalidArgumentException( $error );
+      }
+    }
   }
 
 
@@ -224,7 +302,7 @@ class Router
     $this->method = $method;
     $this->target = $target;
     $this->parameters = $parameters;
-    $this->addAttributes( $this->currentGroupAttributes() );
+    $this->addRouteAttributes( $this->currentGroupAttributes() );
 
     if(stripos($uri, '{') !== false){
       $this->registerParams();
@@ -463,13 +541,13 @@ class Router
   protected function setRouteName(string $name)
   {
     if( ! $this->validateRouteName($name)){
+
       unset( $this->attributes['name'] );
+
       return;
     }
 
-    $prefix = isset($this->attributes['prefix']) ? $this->attributes['prefix'] : '';
-
-    $this->name = $prefix . $name;
+    $this->name = ($this->attributes['prefix'] ?? '') . $name;
 
     static::$route_names[ $name ] = $this->key;
   }
@@ -479,8 +557,10 @@ class Router
   protected function setRoutePrefix(string $prefix)
   {
     if( ! $this->name || ! $this->target || $this->target instanceof \Closure){
+
       // A blank name or a null|Closure target cannot have 'prefix'
       unset( $this->attributes['prefix'] );
+
       return;
     }
 
@@ -498,6 +578,12 @@ class Router
     }
 
     $this->target = ucfirst($name_space) . '\\' . $this->target;
+  }
+
+
+  public function uri()
+  {
+    return $this->uri;
   }
 
 
@@ -523,7 +609,7 @@ class Router
       $route = static::findByRouteParams($route_space, $method, $uri);
     }
 
-    pr(['usr' => __FUNCTION__, 'given $route_space' => $route_space, 'method' => $method, 'uri' => $uri, 'found $route' => $route]);
+    pr(['alg' => __FUNCTION__, 'given $route_space' => $route_space, 'method' => $method, 'uri' => $uri, 'found $route' => $route]);
 
     return $route;
   }
@@ -542,11 +628,24 @@ class Router
     /** @var null|Router $route */
     if($route = static::routes()[ $route_space ][ $method ][ $uri_match_path ] ?? null){
 
+      $route_rules = $route->attributes['rules'] ?? [];
+
+      pr(['alg' => __FUNCTION__, '$uri_match' => $uri_match, '$route_rules' => $route_rules]);
+
+      // Check for any placeholders and validate/collate their route Parameters
       foreach ($uri_match as $i => $key){
 
-        $key = str_replace('{', '', str_replace('}', '', $key), $key_is_placeholder);
+        $key = str_replace(['{', '}'], '', $key, $key_is_placeholder);
 
         if($key_is_placeholder){
+
+          if(array_key_exists($key, $route_rules)){
+
+            if(is_array($rule = $route_rules[ $key ])){
+
+            }
+          }
+
           $route->parameters[ $key ] = $uri_parts[ $i ];
         }
       }
@@ -581,20 +680,45 @@ class Router
   }
 
 
+  /**
+   * Loads all route files of which names are specified in static::$route_spaces
+   */
+  public static function loadRoutes()
+  {
+    if( ! static::$routes){
+
+      foreach (static::$route_spaces as $namespace){
+
+        static::$route_file = $namespace;
+
+        $last_failed_file = static::loadNamespaceRoutes();
+      }
+
+      static::loadGroupedRoutes();
+
+      if( ! static::$loaded){
+        throw new FileNotFoundException("Routes", $last_failed_file ?? '');
+      }
+      elseif (static::$exceptions){
+        static::throwExceptions();
+      }
+
+      static::cacheLoadedRoutes();
+    }
+  }
+
+
+  /**
+   * Load all routes in each and every route file
+   */
   protected static function loadNamespaceRoutes()
   {
     try {
       $file_path = base_dir() . '/routes/'. static::$route_file .'.php';
 
       if(file_exists($file_path)){
-        static::$loaded[] = static::$route_file;
 
-        // ToDo: pass these file routes into a closure to load later as route Group
-        /* E.g
-            Route::group([], function(){
-                require ( ''.$file_path.'' );
-            })->middleware('web');
-         */
+        static::$loaded[] = static::$route_file;
 
         require ( ''.$file_path.'' );
       }
@@ -605,27 +729,19 @@ class Router
   }
 
 
-  protected static function throwExceptions(){
-    foreach (static::$exceptions as $exception_type => $exceptions){
-
-      foreach ($exceptions as $value => $arguments){
-        throw new $exception_type(...$arguments);
-      }
-    }
-  }
-
-
-  public static function loadRoutes()
+  /**
+   * Recursively load all route groups
+   *
+   * static::$groups is emptied in each iteration so that sub-groups in the
+   * current groups callbacks will be filled in via the 'addGroup()' method
+   */
+  protected static function loadGroupedRoutes()
   {
-    if( ! static::$routes){
+    while ($groups = static::$groups){
 
-      foreach (static::$route_spaces as $namespace){
-        static::$route_file = $namespace;
+      static::$groups = [];
 
-        $last_failed_file = static::loadNamespaceRoutes();
-      }
-
-      foreach (static::$groups as $id => [$route, $callback]){
+      foreach ($groups as $id => [$route, $callback]){
 
         static::$route_file = $route->file;
 
@@ -633,17 +749,26 @@ class Router
 
         $callback->call( $route );
       }
-
-      if( ! static::$loaded){
-        throw new FileNotFoundException("Routes", $last_failed_file ?? '');
-      }
-      elseif (static::$exceptions){
-        static::throwExceptions();
-      }
-
-      // ToDo: cache all routes after loading
-
     }
+  }
+
+
+  protected static function throwExceptions()
+  {
+    foreach (static::$exceptions as $exception_type => $exceptions){
+
+      foreach ($exceptions as $value => $arguments){
+
+        throw new $exception_type(...$arguments);
+      }
+    }
+  }
+
+
+  // ToDo: implement cache all routes after loading
+  protected static function cacheLoadedRoutes()
+  {
+
   }
 
 

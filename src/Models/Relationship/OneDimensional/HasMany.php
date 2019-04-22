@@ -4,6 +4,7 @@ namespace Orcses\PhpLib\Models\Relationship\OneDimensional;
 
 
 use Orcses\PhpLib\Models\Model;
+use Orcses\PhpLib\Exceptions\InvalidOperationException;
 
 
 class HasMany extends HasOne
@@ -16,21 +17,16 @@ class HasMany extends HasOne
   }
 
 
-  public function get()
+  public function save(Model $owned)
   {
-    return $this->model()->get();
-  }
+    if(($supplied = get_class($owned)) !== ($expected = get_class($this->owned))){
 
+      throw new InvalidOperationException(
+        "This relation expects '{$expected}' model but got '{$supplied}' instead"
+      );
+    }
 
-  public function find(string  $id)
-  {
-    return $this->model()->find( $id );
-  }
-
-
-  public function first()
-  {
-    return $this->model()->first();
+    return $this->saveOwned( $owned );
   }
 
 

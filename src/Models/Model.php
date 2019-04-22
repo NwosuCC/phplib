@@ -682,6 +682,12 @@ abstract class Model
   }
 
 
+  public function latest()
+  {
+    return $this->orderBy( static::$_CREATED_AT, 'DESC' );
+  }
+
+
   public function limit( int $length, int $start = 0 )
   {
     $this->query()->limit($length, $start);

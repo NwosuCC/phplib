@@ -257,7 +257,7 @@ if (! function_exists('pr')) {
 //      'lgc' => '',
 //      'acc' => '',
 //      'usr' => '',
-//      'alg' => '',
+      'alg' => '',
     ];
     if(!is_array($data) || ! array_intersect_key($allow, $data)) return;
 

@@ -4,7 +4,6 @@ namespace Orcses\PhpLib\Models\Relationship\OneDimensional;
 
 
 use Orcses\PhpLib\Models\Model;
-use Orcses\PhpLib\Exceptions\InvalidOperationException;
 
 
 class HasOne extends OneDimRelationship
@@ -25,26 +24,13 @@ class HasOne extends OneDimRelationship
    *
    * @return Model
    */
-  public function get()
+  public function model()
   {
     return $this->relationsQuery( $this->owned, $this->owner )
 
       ->limit(1)
 
       ->first();
-  }
-
-
-  public function save(Model $owned)
-  {
-    if(($supplied = get_class($owned)) !== ($expected = get_class($this->owned))){
-
-      throw new InvalidOperationException(
-        "This relation expects '{$expected}' model but got '{$supplied}' instead"
-      );
-    }
-
-    return $this->saveOwned( $owned );
   }
 
 

@@ -16,7 +16,7 @@ class Route extends Router
   {
     $route = static::newInstance();
 
-    $route->addAttributes($attributes);
+    $route->addRouteAttributes($attributes);
 
     $route->addGroup( $callback );
 
@@ -26,7 +26,7 @@ class Route extends Router
 
   public function middleware($names)
   {
-    $this->addAttributes(['middleware' => $names]);
+    $this->addRouteAttributes(['middleware' => $names]);
 
     return $this;
   }
@@ -34,7 +34,7 @@ class Route extends Router
 
   public function namespace(string $name)
   {
-    $this->addAttributes(['namespace' => $name]);
+    $this->addRouteAttributes(['namespace' => $name]);
 
     return $this;
   }
@@ -42,20 +42,29 @@ class Route extends Router
 
   public function prefix(string $name)
   {
-    $this->addAttributes(['prefix' => $name]);
+    $this->addRouteAttributes(['prefix' => $name]);
 
     return $this;
   }
 
 
   public function name(string $name){
-    $this->addAttributes(['name' => $name]);
+    $this->addRouteAttributes(['name' => $name]);
 
     return $this;
   }
 
 
-  public static function add(string $method, string $uri, $target, $parameters = []){
+  public function where(array $rules)
+  {
+    $this->addRouteAttributes(['rules' => $rules]);
+
+    return $this;
+  }
+
+
+  public static function add(string $method, string $uri, $target, $parameters = [])
+  {
     $route = static::newInstance();
 
     $route->register( $method, $uri, $target, $parameters );
