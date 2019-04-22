@@ -47,7 +47,7 @@ class Result
     $message_array = static::$reports[ $key ]['success'][ $index ];
 
     [$message, $http_code] = Arr::pad( $message_array, 2, 200 );
-    pr(['usr' => __FUNCTION__, '$message' => $message, '$http_code' => $http_code, '$replaces' => $replaces, '$key' => $key]);
+    pr(['usr' => __FUNCTION__, '$message' => $message, '$http_code' => $http_code, '$replaces' => $replaces, '$key' => $key, '$info' => $info]);
 
     if( ! empty($replaces) and is_array($replaces)){
 

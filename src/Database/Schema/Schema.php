@@ -70,7 +70,7 @@ class Schema {
   public static function strip_guarded_columns($table, $row){
     $remove_columns = static::tables($table, 'guarded');
 
-    return Arr::pickExcept($remove_columns, $row, true);
+    return Arr::drop($remove_columns, $row, true);
   }
 
 }

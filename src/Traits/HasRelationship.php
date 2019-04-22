@@ -3,58 +3,50 @@
 namespace Orcses\PhpLib\Traits;
 
 
+use Orcses\PhpLib\Models\Relationship\OneDimensional\HasOne;
+use Orcses\PhpLib\Models\Relationship\OneDimensional\HasMany;
+use Orcses\PhpLib\Models\Relationship\OneDimensional\BelongsTo;
+
+
 trait HasRelationship
 {
-
-  public function getIdProp()
-  {
-    $prop = strtolower( basename(static::class ) );
-
-    return $prop . '_id';
-  }
-
-
   /**
    * @param string $related
-   * @return \Orcses\PhpLib\Models\Model
+   * @return \Orcses\PhpLib\Models\Relationship\OneDimensional\HasOne
    */
   public function hasOne(string $related)
   {
-    return app()->make($related)
-      ->refreshState()
-      ->where([ $this->getIdProp() => $this->getKey() ])
-      ->limit(1);
+    return app()->build( HasOne::class, [
+      'parent' => $this,
+      'related' => $related
+    ]);
   }
 
 
   /**
    * @param string $related
-   * @return \Orcses\PhpLib\Models\Model
+   * @return \Orcses\PhpLib\Models\Relationship\OneDimensional\HasMany
    */
   public function hasMany(string $related)
   {
-    return app()->make($related)
-      ->refreshState()
-      ->where([ $this->getIdProp() => $this->getKey() ]);
+    return app()->build( HasMany::class, [
+      'parent' => $this,
+      'related' => $related
+    ]);
   }
 
 
   /**
    * @param string $related
-   * @return \Orcses\PhpLib\Models\Model
+   * @return \Orcses\PhpLib\Models\Relationship\OneDimensional\BelongsTo
    */
   public function belongsTo(string $related)
   {
-    $aa = app()->make( $related )
-      ->refreshState()
-      ->where([ $this->getIdProp() => $this->getKey() ])
-      ->limit(1);
-
-    pr(['usr' => __FUNCTION__, '$aa' => $aa, 'getIdProp' => $this->getIdProp(), 'getKey' => $this->getKey()]);
-
-    return $aa;
+    return app()->build( BelongsTo::class, [
+      'related' => $this,
+      'parent' => $related
+    ]);
   }
-
 
 
 }

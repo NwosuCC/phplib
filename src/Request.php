@@ -113,7 +113,7 @@ class Request
 
   public function only(array $fields, bool $assoc = true)
   {
-    return Arr::pickOnly($this->input(), $fields, $assoc);
+    return Arr::pick($this->input(), $fields, $assoc);
   }
 
 
@@ -121,7 +121,7 @@ class Request
   {
     $available_fields = Arr::getExistingKeys($input = $this->input(), $fields);
 
-    return Arr::pickOnly($input, array_keys($available_fields));
+    return Arr::pick($input, array_keys($available_fields));
   }
 
 
@@ -152,7 +152,7 @@ class Request
 
     $assoc &= ($is_array = is_array($keys));
 
-    $values = Arr::pickOnly($this->params, (array) $keys, $assoc);
+    $values = Arr::pick($this->params, (array) $keys, $assoc);
 
     return $is_array ? $values : array_shift($values);
   }

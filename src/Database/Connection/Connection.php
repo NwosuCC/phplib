@@ -17,6 +17,8 @@ abstract class Connection implements Connectible
   /** The current database connected to */
   protected $database;
 
+  protected $options = [];
+
 
   public function __construct($driver = '')
   {
@@ -32,7 +34,10 @@ abstract class Connection implements Connectible
     }
 
     if($this->config = app()->config("database.drivers.{$driver}")){
-      $this->setDatabase($this->config['database']);
+
+      $this->setDatabase( $this->config['database'] );
+
+      $this->options = app()->config("database.options");
     }
   }
 
@@ -40,6 +45,7 @@ abstract class Connection implements Connectible
   public function getDefaultConnection()
   {
     if( ! $this->default){
+
       $this->default = app()->config("database.default");
     }
 
@@ -51,13 +57,21 @@ abstract class Connection implements Connectible
    * Called during initialize(), this sets the database this connection is meant for
    * @param string $database
    */
-  public function setDatabase(string $database){
+  public function setDatabase(string $database)
+  {
     $this->database = $database;
   }
 
 
-  public function getDatabase(){
+  public function getDatabase()
+  {
     return $this->database;
+  }
+
+
+  public function getOptions()
+  {
+    return $this->options;
   }
 
 

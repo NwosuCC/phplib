@@ -1,5 +1,7 @@
 <?php
 
+use Orcses\PhpLib\Utility\Str;
+
 if (! function_exists('app')) {
   /**
    * Return the Application instance
@@ -127,6 +129,22 @@ if (! function_exists('constants')) {
 }
 
 
+if (! function_exists('currency')) {
+  /**
+   * Returns the supplied amount in currency form
+   *
+   * @param  float  $amount
+   * @return float
+   */
+  function currency(float $amount)
+  {
+    $currency_options = app()->config('currency', 'custom');
+
+    return Str::currency( $amount, $currency_options );
+  }
+}
+
+
 if (! function_exists('dd')) {
   /**
    * Call pr() and die() the script
@@ -237,7 +255,8 @@ if (! function_exists('pr')) {
     $allow = [
 //      'tmp' => '',
 //      'lgc' => '',
-      'usr' => '',
+//      'acc' => '',
+//      'usr' => '',
 //      'alg' => '',
     ];
     if(!is_array($data) || ! array_intersect_key($allow, $data)) return;

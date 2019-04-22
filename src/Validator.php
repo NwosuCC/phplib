@@ -27,11 +27,13 @@ class Validator implements HandlesErrors
     'alphanumeric_chars' => [],
     'alphanumeric_space' => [],
     'confirmed' => [],
+    'currencyNumber' => [],
     'dimensions' => [],
     'email' => [],
     'fileType' => [],
     'image' => [],
     'in' => [],
+    'integer' => [],
     'length' => [],
     'max' => [],
     'maxHeight' => [],
@@ -41,8 +43,11 @@ class Validator implements HandlesErrors
     'minHeight' => [],
     'minLength' => [],
     'minWidth' => [],
+    'number' => [],
     'password' => [],
     'required' => [],
+    'size' => [],
+    'step' => [],
     'text' => [],
     // ToDO: import from old
     'xtr' => ['extraFields'],
@@ -65,30 +70,33 @@ class Validator implements HandlesErrors
   protected $failed_rule, $errors = [], $replaces = [];
 
   protected static $messages = [
-    'fieldExists' => "Supplied data must include these fields: {fields}",
-    // messages that have corresponding functions
-    'address' => "{field} may contain only letters and numbers{more_info}",
-    'alphanumeric' => "{field} may contain only letters and numbers",
-    'alphanumeric_chars' => "{field} may contain only letters and numbers{more_info}",
-    'alphanumeric_space' => "{field} may contain only letters and numbers{more_info}",
-    'confirmed' => '{field} confirmation: Entries do not match',
-    'dimensions' => "{field} dimensions must be exactly [{dimensions}]{unit}",
-    'email' => 'Valid {field} is required.',
-    'fileType' => 'File must be one of {file_types}{more_info}',
-    'image' => '{field} must be a valid image{more_info}',
-    'length' => "{field} must be exactly {length} characters long",
-    'max' => "{value_type} must not be more than {max}",
-    'maxHeight' => "Image height must not be more than {max_height}{unit}{more_info}",
-    'maxLength' => "{field} must not be more than {max_length} characters long",
-    'maxWidth' => "Image width must not be more than {max_width}{unit}{more_info}",
-    'min' => "{value_type} must not be less than {min}",
-    'minHeight' => "Image height must not be less than {min_height}{unit}{more_info}",
-    'minLength' => "{field} must not be less than {min_length} characters long",
-    'minWidth' => "Image width must not be less than {min_width}{unit}{more_info}",
-    'password' => '{field} must have at least {more_info}',
-    'required' => '{field} is required',
-    'size' => "{value_type} must be equal to {size}",
-    'text' => '{field} is invalid',
+    'fieldExists' /*---------*/ => "Supplied data must include these fields: {fields}",
+    'address'     /*---------*/ => "{field} may contain only letters and numbers{more_info}",
+    'alphanumeric'   /*------*/ => "{field} may contain only letters and numbers",
+    'alphanumeric_chars' /*--*/ => "{field} may contain only letters and numbers{more_info}",
+    'alphanumeric_space' /*--*/ => "{field} may contain only letters and numbers{more_info}",
+    'confirmed'      /*------*/ => '{field} confirmation: Entries do not match',
+    'currencyNumber' /*------*/ => '{field} must be valid currency figure, with two (2) decimal places or none at all',
+    'dimensions'     /*------*/ => "{field} dimensions must be exactly [{dimensions}]{unit}",
+    'email'     /*-----------*/ => 'Valid {field} is required.',
+    'fileType'  /*-----------*/ => 'File must be one of {file_types}{more_info}',
+    'image'     /*-----------*/ => '{field} must be a valid image{more_info}',
+    'integer'   /*-----------*/ => '{field} is not a valid integer',
+    'length'    /*-----------*/ => "{field} must be exactly {length} characters long",
+    'max'       /*-----------*/ => "{value_type} must not be more than {max}",
+    'maxHeight' /*-----------*/ => "Image height must not be more than {max_height}{unit}{more_info}",
+    'maxLength' /*-----------*/ => "{field} must not be more than {max_length} characters long",
+    'maxWidth'  /*-----------*/ => "Image width must not be more than {max_width}{unit}{more_info}",
+    'min'       /*-----------*/ => "{value_type} must not be less than {min}",
+    'minHeight' /*-----------*/ => "Image height must not be less than {min_height}{unit}{more_info}",
+    'minLength' /*-----------*/ => "{field} must not be less than {min_length} characters long",
+    'minWidth'  /*-----------*/ => "Image width must not be less than {min_width}{unit}{more_info}",
+    'number'    /*-----------*/ => '{field} is not a valid number',
+    'password'  /*-----------*/ => '{field} must have at least {more_info}',
+    'required'  /*-----------*/ => '{field} is required',
+    'size' /*----------------*/ => "{value_type} must be equal to {size}",
+    'step' /*----------------*/ => "{field} must be a multiple of {step}",
+    'text' /*----------------*/ => '{field} is invalid',
   ];
 
 
@@ -433,6 +441,45 @@ class Validator implements HandlesErrors
   }
 
 
+  protected function parseNumber($number)
+  {
+    $number_array = Arr::each( explode('.', $number), 'trim' );
+
+    $parts_count = count( $number_array );
+
+    if( ! in_array($parts_count, [1,2])){
+      return null;
+    }
+
+    [ $whole_number, $decimal ] = Arr::pad( $number_array, 2, '' );
+
+    if($whole_number === ''){
+      return null;
+    }
+
+    $whole_number_array = explode(',', $whole_number);
+
+    foreach ($whole_number_array as $i => &$group){
+
+      $group = trim($group);
+
+      $inv_group_1 = ($i === 0 && strlen($group) > 3 && count($whole_number_array) > 1);
+
+      $inv_group_3 = ($i > 0 && strlen($group) !== 3);
+
+      if($inv_group_1 || $inv_group_3){
+        return null;
+      }
+    }
+
+    $mantissa = implode('', $whole_number_array);
+
+    $new_number = ($decimal !== '') ? $mantissa .'.'. $decimal : $mantissa;
+
+    return is_numeric($new_number) ? [ $new_number, $mantissa, $decimal ] : null;
+  }
+
+
 
   /*==================================================================================
    |   V A L I D A T I O N   F U N C T I O N S  -  Arranged in alphabetical order
@@ -541,6 +588,20 @@ class Validator implements HandlesErrors
     }
 
     return $replaces;
+  }
+
+
+  public function currencyNumber($number)
+  {
+    if( ! $parsed_number = $this->parseNumber($number)){
+      return null;
+    }
+
+    [$number, $mantissa, $decimal] = $parsed_number;
+
+    $valid = $mantissa !== '' && in_array( strlen($decimal), [0,2] );
+
+    return $valid ? [$number] : null;
   }
 
 
@@ -662,6 +723,18 @@ class Validator implements HandlesErrors
   }
 
 
+  public function integer($number)
+  {
+    if( ! $parsed_number = $this->parseNumber($number)){
+      return null;
+    }
+
+    [$number, $mantissa, $decimal] = $parsed_number;
+
+    return ($mantissa !== '' && $decimal === '') ? [$number] : null;
+  }
+
+
   public function length($string, int $length, string $operator = null)
   {
     if($operator && ! method_exists($this, $operator)){
@@ -710,7 +783,6 @@ class Validator implements HandlesErrors
 
   public function min($value, $min)
   {
-    pr(['usr' => __FUNCTION__, '$value' => $value, '$min' => $min]);
     return $this->size($value, $min, __FUNCTION__);
   }
 
@@ -730,6 +802,12 @@ class Validator implements HandlesErrors
   public function minWidth($image, $min_width)
   {
     return $this->dimensions($image, $min_width, __FUNCTION__);
+  }
+
+
+  public function number($number)
+  {
+    return ($parsed_number = $this->parseNumber($number)) ? [ $parsed_number[0] ] : null;
   }
 
 
@@ -796,6 +874,28 @@ class Validator implements HandlesErrors
     }
 
     return ( ! $this->replaces) ? [$value] : null;
+  }
+
+
+  public function step($number, $step)
+  {
+    $this->replaces['step'] = $step = trim( $step );
+
+    if( ! $step || ! $parsed_number = $this->parseNumber($number)){
+      return null;
+    }
+
+    [$number] = $parsed_number;
+
+    $quotient_decimal = $this->parseNumber( $number / $step )[2] ?? null;
+
+    if($quotient_decimal !== ''){
+      return null;
+    }
+
+    $this->replaces = [];
+
+    return [$number];
   }
 
 

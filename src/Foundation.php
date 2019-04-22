@@ -21,7 +21,7 @@ class Foundation
 
   protected $start_time;
 
-  protected $base_path, $config, $dot_config;
+  protected $base_path, $config;
 
 
   protected function __construct($base_dir)
@@ -32,7 +32,8 @@ class Foundation
   }
 
 
-  private function boot(string $base_directory){
+  protected final function boot(string $base_directory)
+  {
     if( ! $this->booted){
       define(
         'ORCSES_START',
@@ -51,21 +52,26 @@ class Foundation
       $this->registerServiceProviders();
 
       $this->initializeBaseClasses();
+
+      $this->bootServiceProviders();
     }
   }
 
 
-  public function baseDir(){
+  public function baseDir()
+  {
     return $this->base_path;
   }
 
 
-  public function appDir(){
+  public function appDir()
+  {
     return $this->baseDir() . '/app';
   }
 
 
-  protected function importEnvironmentVariables(){
+  protected function importEnvironmentVariables()
+  {
     /*
      * Load the Environment Variables
      */
@@ -87,15 +93,26 @@ class Foundation
   protected function loadConfigurations()
   {
     try {
-      $file_path = $this->baseDir() . '/config/app.php';
+      $config_dir = $this->baseDir() . '/config/';
+
+      $file_path = $config_dir . 'app.php';
 
       if(file_exists($file_path)){
 
-        $this->config = require (''.$file_path.'');
+        $this->config['app'] = require (''.$file_path.'');
 
         $this->config['app']['dir'] = $this->appDir();
 
-//        $this->dot_config = Arr::toDotNotation( $this->config );
+        // Load other config
+        foreach ($this->config['app']['files']['config'] as $file){
+
+          $file_path = $config_dir . "{$file}.php";
+
+          if(file_exists($file_path)){
+
+            $this->config[ $file ] = require (''.$file_path.'');
+          }
+        }
       }
     }
     catch (Exception $e){
@@ -111,6 +128,8 @@ class Foundation
 
         foreach ($providers as $class_name){
 
+          $this->singleton( $class_name );
+
           $provider_class = $this->make( $class_name );
 
           $provider_class->register();
@@ -119,7 +138,18 @@ class Foundation
         }
       }
     }
-    catch (Exception $e){}
+    catch (Exception $e){
+      $this->error = $e->getMessage();
+    }
+  }
+
+
+  protected function bootServiceProviders()
+  {
+    foreach ($this->providers as $provider_class){
+
+      $provider_class->boot();
+    }
   }
 
 
@@ -129,26 +159,33 @@ class Foundation
   }
 
 
-  public function bind($abstract, $concrete)
+  public function bind($abstract, $concrete = null)
   {
     $this->container->set( $abstract, $concrete );
   }
 
 
-  public function make($class_name)
+  public function singleton($abstract, $concrete = null)
   {
-    if(array_key_exists($class_name, $this->facades)){
-      return $this->facades[ $class_name ];
-    }
-
-    return $this->build( $class_name );
+    $this->container->set( $abstract, $concrete, true );
   }
 
 
-  // ToDo: create and use facades (like in App::make()) instead of full class namespaces
-  public function build(string $class_name)
+  public function make($abstract)
   {
-    return $this->container->make( $class_name );
+    return $this->build( $abstract, [] );
+  }
+
+
+  /**
+   * Builds an instance of the supplied class name using the supplied arguments
+   * @param $class_name
+   * @param array $arguments
+   * @return mixed
+   */
+  public function build(string $class_name, array $arguments)
+  {
+    return $this->container->make( $class_name, $arguments );
   }
 
 
@@ -163,12 +200,13 @@ class Foundation
 
   protected function initializeBaseClasses()
   {
-    foreach ($this->aliases() as $facade_accessor => $class){
+    foreach ($this->aliases() as $facade_accessor => $class_name){
 
-      if( ! array_key_exists($facade_accessor, $this->facades)){
+      $this->facades[ $facade_accessor ] = $this->make( $class_name );
 
-        $this->facades[ $facade_accessor ] = $this->build($class);
-      }
+      $this->singleton( $class_name, $this->facades[ $facade_accessor ] );
+
+      $this->singleton( $facade_accessor, $class_name );
     }
   }
 
@@ -178,7 +216,8 @@ class Foundation
    * @param $key
    * @return string
    */
-  protected function getAlias(string $key){
+  protected function getAlias(string $key)
+  {
     return $this->aliases()[ $key ] ?? null;
   }
 
@@ -186,7 +225,8 @@ class Foundation
   /**
    * The keys are the facade accessor names
    */
-  protected function aliases(){
+  protected function aliases()
+  {
     return [
       'Router' => \Orcses\PhpLib\Routing\Router::class,
       'Response' => \Orcses\PhpLib\Response::class,

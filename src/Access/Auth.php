@@ -68,7 +68,10 @@ final class Auth
   {
     if(in_array($code, self::$replaces) && $more_info = self::moreInfo($code)){
 
-      $replaces[ $more_info[0] ] = $more_info[1] ?: '';
+      if( ! array_key_exists($more_info[0], $replaces)){
+
+        $replaces[ $more_info[0] ] = $more_info[1] ?: '';
+      }
     }
 
     return error( report()::ACCESS, $code, $replaces );

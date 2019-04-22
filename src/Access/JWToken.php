@@ -23,7 +23,7 @@ class JWToken
 
   protected static function keyId($payload)
   {
-    [$iat, $iss, $exp] = Arr::pickOnly($payload, ['iat', 'iss', 'exp'],false);
+    [$iat, $iss, $exp] = Arr::pick($payload, ['iat', 'iss', 'exp'],false);
 
     $user_info = $payload['inf']['user'];
 

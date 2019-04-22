@@ -14,7 +14,7 @@ class Container
   /** @var array */
   protected $instances = [];
 
-  protected $resolved = [];
+  protected $shared = [], $resolved = [];
 
   protected $error;
 
@@ -22,54 +22,74 @@ class Container
   /**
    * @param      $abstract
    * @param null $concrete
+   * @param bool $shared
    */
-  public function set($abstract, $concrete = NULL)
+  public function set($abstract, $concrete = null, bool $shared = false)
   {
-    if ($concrete === NULL) {
+    if (is_null( $concrete )) {
       $concrete = $abstract;
     }
 
     $this->instances[ $abstract ] = $concrete;
-//    pr(['usr' => __FUNCTION__, '000 $concrete' => $concrete, '$abstract' => $abstract, 'instances' => $this->instances]);
+
+    if($shared){
+      $this->shared[ $abstract ] = $concrete;
+    }
   }
 
 
   /**
    * Returns the concrete of the supplied abstract
-   * @param       $abstract
+   * @param      $abstract
    * @return mixed
    */
   public function get($abstract)
   {
-//    pr(['usr' => __FUNCTION__, '000 $abstract' => $abstract, 'exists' => array_key_exists($abstract, $this->instances)]);
     if ( ! array_key_exists($abstract, $this->instances)) {
 
-      $this->set($abstract);
+      $this->set( $abstract );
     }
 
-    return $this->instances[ $abstract ];
+    return $this->instances[ $abstract ] ?? null;
   }
 
 
   /**
    * Returns a resolved instance
    * @param       $abstract
-   * @param array $parameters
+   * @param array $arguments
    * @return mixed
    */
-  public function make($abstract, $parameters = [])
+  public function make($abstract, $arguments = [])
   {
-    pr(['usr' => __FUNCTION__, '000 $abstract' => $abstract, 'is resolved' => array_key_exists($abstract, $this->resolved)]);
+    pr(['usr' => __FUNCTION__, '000 $abstract' => $abstract, 'shared' => array_key_exists($abstract, $this->shared)]);
+
+    $concrete = $this->get($abstract);
+
+    if ( ! array_key_exists($abstract, $this->shared)) {
+
+      // Not singleton; return a new resolved instance
+      return $this->resolve( $concrete, $arguments );
+    }
+
+    pr(['usr' => __FUNCTION__, '111 $abstract' => $abstract,'shared' => true, 'resolved' => array_key_exists($abstract, $this->resolved)]);
+
+    // Is singleton
     if ( ! array_key_exists($abstract, $this->resolved)) {
+      // No previously resolved instance for this singleton abstract
 
-      if($concrete = $this->resolve( $this->get($abstract), $parameters )){
+      if (is_string($concrete) && array_key_exists($concrete, $this->resolved)) {
 
+        // Return the previously resolved concrete instance
+        $this->resolved[ $abstract ] = $this->resolved[ $concrete ];
+      }
+      elseif($concrete = $this->resolve( $concrete, $arguments )){
+
+        // Resolve and return a new concrete instance
         $this->resolved[ $abstract ] = $concrete;
       }
-
-      $this->set($abstract, $concrete);
     }
-    pr(['usr' => __FUNCTION__, '111 $abstract' => $abstract, '$concrete' => get_class($this->resolved[ $abstract ])]);
+    pr(['usr' => __FUNCTION__, '222 $abstract' => $abstract,'shared' => true, 'resolved' => true, '$concrete' => get_class($this->resolved[ $abstract ])]);
 
     return $this->resolved[ $abstract ];
   }
@@ -103,31 +123,32 @@ class Container
    * Resolves a single class
    *
    * @param $concrete
-   * @param $parameters
+   * @param $arguments
    *
    * @return mixed|object
    * @throws BuildException
    */
-  protected function resolve($concrete, $parameters)
+  protected function resolve($concrete, $arguments)
   {
-//    pr(['usr' => __FUNCTION__, '$concrete' => $concrete, '$parameters' => $parameters]);
+    pr(['usr' => __FUNCTION__, '$concrete' => $concrete, 'class exists' => is_object($concrete) or class_exists($concrete), '$arguments' => $arguments]);
     if ($concrete instanceof Closure) {
 //      pr(['usr' => __FUNCTION__, 'is Closure $concrete' => $concrete]);
-      return $concrete($this, $parameters);
+      return $concrete( $this, $arguments );
     }
 
     try {
-      $reflector = new ReflectionClass($concrete);
+      $reflector = new ReflectionClass( $concrete );
 //    pr(['usr' => __FUNCTION__, '$reflector' => $reflector, 'isInstantiable' => $reflector->isInstantiable()]);
     }
     catch (ReflectionException $e){
-      pr(['usr' => __FUNCTION__, '$e' => $e->getMessage()]);
+//      pr(['usr' => __FUNCTION__, '$e' => $e->getMessage()]);
 
       throw new BuildException( $e->getMessage() );
     }
 
     // check if class is instantiable
     if ( ! $reflector->isInstantiable()) {
+
       $this->error = "Class {$concrete} is not instantiable";
 //      pr(['usr' => __FUNCTION__, 'error 111' => $this->error]);
 
@@ -136,7 +157,7 @@ class Container
 
     // get class constructor
     $constructor = $reflector->getConstructor();
-    pr(['usr' => __FUNCTION__, '$constructor' => $constructor]);
+//    pr(['usr' => __FUNCTION__, '$constructor' => $constructor]);
 
     if (is_null($constructor)) {
       // get new instance from class
@@ -147,7 +168,7 @@ class Container
     $parameters = $constructor->getParameters();
 //    pr(['usr' => __FUNCTION__, '$parameters' => $parameters]);
 
-    $dependencies = $this->getDependencies($parameters);
+    $dependencies = $this->getDependencies($parameters, $arguments);
 //    pr(['$dependencies', $dependencies]);
 //    pr(['usr' => __FUNCTION__, '$dependencies' => $dependencies]);
 
@@ -195,22 +216,26 @@ class Container
    * Get all dependencies resolved
    *
    * @param $parameters
+   * @param array $arguments
    *
    * @return array
    * @throws BuildException
    */
-//  public function getDependencies($parameters, array $arguments = [])
-  public function getDependencies($parameters)
+  public function getDependencies($parameters, array $arguments = null)
   {
     $dependencies = [];
+
+    $arguments = $arguments ?: [];
+
 //    pr(['getDependencies', $parameters]);
 
     foreach ($parameters as $parameter) {
       /** @var \ReflectionParameter $parameter */
 
+      $parameter_name = $parameter->getName();
+
       // get the type hinted class
 //      pr(['$parameter', $parameter]);
-      $dependency = $parameter->getClass();
 
 //      pr(['$parameter', $parameter, '$dependency', $dependency,
 //        'isDefaultValueAvailable', $def = $parameter->isDefaultValueAvailable(),
@@ -223,26 +248,36 @@ class Container
 //      pr(['usr' => __FUNCTION__, 'canBePassedByValue' => $parameter->canBePassedByValue(), 'isDefaultValueAvailable' => $parameter->isDefaultValueAvailable()]);
 
 
-      if ($dependency === NULL) {
+      // First, check if parameter value is supplied in the $arguments
+      // This lets the developer inject known dynamic dependencies which cannot easily be type-hinted
+      // E.g injecting different (dynamic) Model instances (User, Post, etc) into a HasMany::class
+      if (array_key_exists( $parameter_name, $arguments)) {
 
-        // check if default value for a parameter is available
-        /*if (array_key_exists( $name = $parameter->getName(), $arguments)) {
+        // Get the value for the parameter from the supplied $arguments
+        $dependency = $arguments[ $parameter_name ];
 
-          // Add the value for the parameter from the item in the supplied $arguments
-          $dependencies[] = $arguments[ $name ];
+        // Build the dependency if it is a class name and the class exists
+        if(is_string($dependency) && class_exists($dependency)){
+
+          $dependency = $this->make( $dependency );
         }
-        else*/if ($parameter->isDefaultValueAvailable()) {
 
-          // get default value of parameter
-          $dependencies[] = $parameter->getDefaultValue();
+        $dependencies[ $parameter_name ] = $dependency;
+      }
+      elseif (is_null( $dependency = $parameter->getClass() )){
+
+        // Use the parameter default value, if available
+        if ($parameter->isDefaultValueAvailable()) {
+
+          $dependencies[ $parameter_name ] = $parameter->getDefaultValue();
         }
         else {
           throw new BuildException("Could not resolve class dependency {$parameter->name}");
         }
       }
       else {
-        // get dependency resolved
-        $dependencies[ $parameter->getName() ] = $this->make($dependency->name);
+        // Get resolved dependency
+        $dependencies[ $parameter_name ] = $this->make($dependency->name);
       }
     }
 

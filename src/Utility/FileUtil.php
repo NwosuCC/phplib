@@ -54,22 +54,34 @@ class FileUtil
    * @param       array    $permissions   Unix file permissions to apply to the new copied directories
    * @return      bool     Returns TRUE on success, FALSE on failure
    */
-  public static function copy_recursive($source, $destination, $permissions = []){
+  public static function copy_recursive($source, $destination, $permissions = [])
+  {
     // Check for symlinks
-    if (is_link($source)) { return symlink(readlink($source), $destination); }
+    if (is_link($source)) {
+      return symlink(readlink($source), $destination);
+    }
 
     // Simple copy for a file
-    if (is_file($source)) { return copy($source, $destination); }
+    if (is_file($source)) {
+      return copy($source, $destination);
+    }
 
     // Make destination directory
     if (!is_dir($destination)) {
       mkdir($destination);
-      if(!empty($permissions['group'])){ chgrp($destination, $permissions['group']); }
-      if(!empty($permissions['mode'])){ chmod($destination, $permissions['mode']); }
+
+      if(!empty($permissions['group'])){
+        chgrp($destination, $permissions['group']);
+      }
+
+      if(!empty($permissions['mode'])){
+        chmod($destination, $permissions['mode']);
+      }
     }
 
     // Loop through the folder
     $dir = dir($source);
+
     while (false !== ($entry = $dir->read())) {
       // Skip pointers
       if ($entry == '.' || $entry == '..') { continue; }
