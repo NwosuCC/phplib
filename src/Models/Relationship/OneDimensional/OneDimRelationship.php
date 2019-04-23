@@ -41,7 +41,7 @@ class OneDimRelationship extends Relationship
 
 
   /**
-   * Prepares the query to retrieves a related model
+   * Prepares the query to retrieve a related model
    * @param Model $related  The related model to retrieve
    * @param Model $subject  The subject model whose key will be used for the search
    * @return Model
@@ -71,6 +71,21 @@ class OneDimRelationship extends Relationship
 
     return $prop . '_' . $model->getKeyName();
   }
+
+
+  protected function setPivot()
+  {
+    $tables = [
+      $owner_table = $this->owner->getTable(), $owned_table = $this->owned->getTable()
+    ];
+
+    natcasesort($tables);
+
+    $pivot = implode('_', $tables);
+
+//    if($this->owned->)
+  }
+
 
 
 }

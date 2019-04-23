@@ -105,16 +105,24 @@ abstract class Model
 
 
   /**
-   * Retrieves and returns an instance of the child model $obj having the specified $id
-   * For use esp. in DI into Controllers
+   * Retrieves and returns an instance of the child model having the supplied id
+   * For use especially in Dependency Injection into Controllers
    *
-   * @param Model   $obj  The child model object
+   * @param Model   $route_obj  The child model object
    * @param string  $id   The id of the object
    * @return Model
    */
-  public static function newFromObj(Model $obj, string $id)
+  public static function newFromRouteParam(Model $route_obj, string $id)
   {
-    return $obj->find( $id );
+    return $route_obj
+      ->where([ $route_obj->getRouteKeyName() => trim($id) ])
+      ->first();
+  }
+
+
+  public function getRouteKeyName()
+  {
+    return 'id';
   }
 
 
@@ -682,9 +690,29 @@ abstract class Model
   }
 
 
+  private function sortLatest(Model $row, Model $next_row)
+  {
+    $date_1 = $this->dateTimeObject( $row->{static::$_CREATED_AT} );
+
+    $date_2 = $this->dateTimeObject( $next_row->{static::$_CREATED_AT} );
+
+    if ($date_1->equalTo($date_2)){
+      return 0;
+    }
+
+    return ($date_1->greaterThan($date_2)) ? -1 : 1;
+  }
+
+
   public function latest()
   {
-    return $this->orderBy( static::$_CREATED_AT, 'DESC' );
+    ($this->result)
+
+      ? usort($this->rows, [$this, 'sortLatest'])
+
+      : $this->orderBy( static::$_CREATED_AT, 'DESC' );
+
+    return $this;
   }
 
 

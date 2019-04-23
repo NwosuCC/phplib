@@ -9,6 +9,16 @@ use Orcses\PhpLib\Exceptions\InvalidOperationException;
 
 class HasMany extends HasOne
 {
+  protected $pivot;
+
+
+  public function __construct(Model $parent, Model $related)
+  {
+    parent::__construct($parent, $related);
+
+    $this->setPivot();
+  }
+
 
   /** @return Model */
   public function model()

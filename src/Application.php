@@ -148,7 +148,7 @@ final class Application extends Foundation
 
     [$target, $arguments, $attributes] = $route->props(['target', 'parameters', 'attributes']);
 
-    // Bind route parameters into request\][p
+    // Bind route parameters into request
     $request->setParams( $arguments );
 
     pr(['usr' => __FUNCTION__, '$target' => $target, '$arguments' => $arguments, '$attributes' => $attributes]);
@@ -241,13 +241,18 @@ final class Application extends Foundation
           $dependency->hydrate();
 
         }
-        elseif(is_a($dependency, Model::class)){
+        elseif(is_subclass_of($dependency, Model::class)){
           /**@var Model $dependency */
 
           // Inject Model dependencies into controller
           if(array_key_exists($parameter_name, $arguments)){
 
-            $dependency = Model::newFromObj($dependency, $arguments[ $parameter_name ]);
+            $dependency = Model::newFromRouteParam($dependency, $arguments[ $parameter_name ]);
+
+            if( ! $dependency){
+
+              $request->abort();
+            }
           }
         }
       }

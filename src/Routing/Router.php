@@ -231,13 +231,9 @@ class Router
 
     $array_value = is_array( $value );
 
-    if($name === 'rules')
-    pr(['alg' => __FUNCTION__, '$name' => $name, '$value' => $value, '$array_value' => $array_value]);
-
     foreach((array) $value as $key => $value){
 
       if($name === 'rules'){
-
         $this->validateRules([$key => $value]);
       }
 
@@ -245,9 +241,6 @@ class Router
         is_numeric($key)
           ? $this->attributes[ $name ][] = $value
           : $this->attributes[ $name ][$key] = $value;
-
-        if($name === 'rules')
-          pr(['alg' => __FUNCTION__, 'attributes' => $this->attributes]);
       }
       else {
         $this->attributes[ $name ] = $value;
@@ -630,8 +623,6 @@ class Router
 
       $route_rules = $route->attributes['rules'] ?? [];
 
-      pr(['alg' => __FUNCTION__, '$uri_match' => $uri_match, '$route_rules' => $route_rules]);
-
       // Check for any placeholders and validate/collate their route Parameters
       foreach ($uri_match as $i => $key){
 
@@ -641,8 +632,11 @@ class Router
 
           if(array_key_exists($key, $route_rules)){
 
-            if(is_array($rule = $route_rules[ $key ])){
-
+            if(is_array($rule = $route_rules[ $key ]) && ! in_array($uri_parts[ $i ], $rule)){
+              return null;
+            }
+            elseif(is_string($rule) && ! preg_match($rule, $uri_parts[ $i ])){
+              return null;
             }
           }
 
