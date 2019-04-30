@@ -8,7 +8,7 @@ use Orcses\PhpLib\Logger;
 use Orcses\PhpLib\Utility\Str;
 use Orcses\PhpLib\Utility\Arr;
 use Orcses\PhpLib\Interfaces\Connectible;
-use Orcses\PhpLib\Exceptions\Database\MysqlQueryException;
+use Orcses\PhpLib\Exceptions\Database\InvalidColumnPropertyException;
 
 
 class MysqlQuery extends Query {
@@ -44,7 +44,7 @@ class MysqlQuery extends Query {
 
   protected static function throwError(string $message, string $func_name = '')
   {
-    throw new MysqlQueryException( $message, $func_name );
+    throw new InvalidColumnPropertyException( $message, $func_name );
   }
 
 
@@ -272,7 +272,7 @@ class MysqlQuery extends Query {
         $column_quote = $column_value ? $quotes['value'] : $quotes['column'];
 
         if(Str::hasUnescapedSingleQuote($column, $column_quote)){
-          // Column already has single quote (suspicious!!!). Empty the array and terminate the loop
+          // Column1 already has single quote (suspicious!!!). Empty the array and terminate the loop
           $columns = [];
           break;
         }
