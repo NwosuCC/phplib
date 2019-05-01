@@ -5,7 +5,7 @@ namespace Orcses\PhpLib\Exceptions\Database;
 
 use RuntimeException;
 
-class DatabaseConnectionNotFoundException extends RuntimeException
+class ConnectionNotFoundException extends RuntimeException
 {
 
   public function __construct( $name ) {

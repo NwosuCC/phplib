@@ -166,6 +166,7 @@ abstract class Model
   // ToDo: refactor this
   protected function setConnection()
   {
+    // ToDo: $this->connection = app()->make(ConnectionManager::class)->getConnection()
     $this->connection = new MysqlConnection();
   }
 
@@ -186,6 +187,7 @@ abstract class Model
   protected function query()
   {
     if( ! $this->query){
+      // ToDo: $this->query = $this->getConnection()->getQuery();
       $this->query = new MysqlQuery( $this->getConnection() );
     }
 

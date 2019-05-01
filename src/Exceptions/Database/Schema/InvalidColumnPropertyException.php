@@ -8,9 +8,9 @@ use RuntimeException;
 class InvalidColumnPropertyException extends RuntimeException
 {
 
-  public function __construct( $prop ) {
+  public function __construct($name ) {
 
-    $message = "The property '{$prop}' is not expected'";
+    $message = "The property '{$name}' is not expected'";
 
     parent::__construct($message);
   }

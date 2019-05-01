@@ -5,6 +5,12 @@ namespace Orcses\PhpLib\Database\Schema\Columns;
 
 class NumericColumn extends Column
 {
+  const SIGNED = 'signed';
+  const ZERO_FILL = 'zerofill';
+  const AUTO_INCREMENT = 'auto_increment';
+  const PRECISION = 'precision';
+  const SCALE = 'scale';
+
   protected $signed = true;
 
   protected $zerofill = false;
@@ -15,10 +21,13 @@ class NumericColumn extends Column
 
   protected $scale;
 
-  // Merged in at parent construct()
-  protected $props = [
-    'signed', 'zerofill', 'auto_increment', 'precision', 'scale'
-  ];
+
+  protected function getProps()
+  {
+    return [
+      'signed', 'zerofill', 'auto_increment', 'precision', 'scale'
+    ];
+  }
 
 
   public function setSigned(bool $flag)

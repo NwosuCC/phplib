@@ -3,6 +3,7 @@
 namespace Orcses\PhpLib\Database\Connection;
 
 
+use Orcses\PhpLib\Exceptions\Database\ConnectionNotFoundException;
 use Orcses\PhpLib\Interfaces\Connectible;
 
 
@@ -31,9 +32,11 @@ abstract class Connection implements Connectible
       $driver = $this->getDefaultConnection();
     }
 
-    if($this->config = app()->config("database.drivers.{$driver}")){
-      $this->setDatabase($this->config['database']);
+    if(! $this->config = app()->config("database.drivers.{$driver}")){
+      throw new ConnectionNotFoundException('');
     }
+
+    $this->setDatabase($this->config['database']);
   }
 
 

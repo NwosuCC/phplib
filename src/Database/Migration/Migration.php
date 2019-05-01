@@ -3,8 +3,9 @@
 namespace Orcses\PhpLib\Database\Schema;
 
 
-class Schema
+abstract class Migration
 {
+  protected $connection;
 
 
 }

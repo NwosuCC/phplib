@@ -3,7 +3,8 @@
 namespace Orcses\PhpLib\Database\Connection;
 
 
-use Orcses\PhpLib\Exceptions\Database\DatabaseConnectionNotFoundException;
+use Orcses\PhpLib\Exceptions\Database\ConnectionNotFoundException;
+
 
 class ConnectionManager
 {
@@ -29,7 +30,7 @@ class ConnectionManager
 
   public function getConnection($name){
     if( ! $this->hasConnection($name)){
-      throw new DatabaseConnectionNotFoundException($name);
+      throw new ConnectionNotFoundException($name);
     }
 
     return $this->connections[$name];

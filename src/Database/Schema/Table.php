@@ -3,58 +3,54 @@
 namespace Orcses\PhpLib\Database\Schema;
 
 
-use Orcses\PhpLib\Database\Schema\Columns\Column;
-use Orcses\PhpLib\Database\Schema\Columns\NumericColumn;
-
-
 class Table
 {
   protected $name;
 
-  protected $columns = [];
-
-  /** @var Column[] */
-  protected $primary = [];
+  protected $exists;
 
   protected $collation = 'utf8mb4_unicode_ci';  // put in config
 
 
-  public function __construct(string $name, array $attributes = null)
+  public function __construct(string $name)
   {
     $this->name = $name;
-
-    $this->addAttributes($attributes);
   }
 
 
-  public function autoIncrements(string $name)
+  public function getName()
   {
-    $column = new NumericColumn( $name, '' );
-
-    $this->addColumn( $column );
-
-    return $column;
+    return $this->name;
   }
 
 
-  public function string(string $name)
+  public function setExists(bool $flag)
   {
-    return $this->addColumn( $name, 'string' );
-  }
-
-
-  protected function addColumn(Column &$column)
-  {
-    $this->columns[] = $column;
+    $this->exists = $flag;
 
     return $this;
   }
 
 
-  protected function addAttributes(array $attributes)
+  public function getExists()
   {
-
+    return $this->exists;
   }
 
 
+  /*protected function addAttributes(array $attributes)
+  {
+    foreach($attributes as $name => $value){
+
+      if($name === 'collation' && $value){
+        // Over-write default
+        $this->collation = $value;
+      }
+
+    }
+
+  }*/
+
+
 }
+

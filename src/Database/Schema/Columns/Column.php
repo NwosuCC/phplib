@@ -3,11 +3,22 @@
 namespace Orcses\PhpLib\Database\Schema\Columns;
 
 
-use Orcses\PhpLib\Exceptions\Database\Schema\InvalidColumnPropertyException;
 use Orcses\PhpLib\Utility\Str;
+use Orcses\PhpLib\Exceptions\Database\Schema\InvalidColumnPropertyException;
+
 
 abstract class Column
 {
+  const NAME       = 'name';
+  const TYPE       = 'type';
+  const LENGTH     = 'length';
+  const NULL       = 'null';
+  const DEFAULT    = 'default';
+  const PRIMARY    = 'primary';
+  const COMMENT    = 'comment';
+  const EXPRESSION = 'expression';
+  const AFTER      = 'after';
+
   protected $name;
 
   protected $type;
@@ -28,7 +39,9 @@ abstract class Column
 
   protected $properties;
 
-  protected $props = [];
+  protected $props = [
+    'length', 'null', 'default', 'primary', 'comment', 'expression', 'after'
+  ];
 
   // name
   // type (length) : int (%d) (un)signed, decimal (%d,%d), varchar (%d), text (), datetime (), timestamp ()
@@ -51,12 +64,8 @@ abstract class Column
   }
 
 
-  protected final function getProps()
-  {
-    return [
-      'length', 'null', 'default', 'primary', 'comment', 'expression', 'after'
-    ];
-  }
+  // Get the specific props of this sub_class
+  abstract protected function getProps();
 
 
   protected function setProperties()

@@ -7,10 +7,13 @@ class DateTimeColumn extends Column
 {
   protected $on_update;
 
-  // Merged in at parent construct()
-  protected $props = [
-    'on_update'
-  ];
+
+  protected function getProps()
+  {
+    return [
+      'on_update'
+    ];
+  }
 
 
   public function setOnUpdate(string $on_update) // Use Command instead
