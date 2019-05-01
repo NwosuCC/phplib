@@ -33,6 +33,12 @@ interface Connectible
 
 
   /**
+   * Returns additional database settings
+   */
+  public function getOptions();
+
+
+  /**
    * Closes the connection
    * @param mixed $connection   The connection instance to close
    */

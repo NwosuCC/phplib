@@ -3,58 +3,90 @@
 namespace Orcses\PhpLib\Traits;
 
 
+use Orcses\PhpLib\Models\Relationship\OneDimensional\HasOne;
+use Orcses\PhpLib\Models\Relationship\OneDimensional\HasMany;
+use Orcses\PhpLib\Models\Relationship\OneDimensional\BelongsTo;
+use Orcses\PhpLib\Models\Relationship\MultiDimensional\MorphsTo;
+use Orcses\PhpLib\Models\Relationship\MultiDimensional\MorphsToMany;
+use Orcses\PhpLib\Models\Relationship\MultiDimensional\MorphsToOne;
+
+
 trait HasRelationship
 {
-
-  public function getIdProp()
-  {
-    $prop = strtolower( basename(static::class ) );
-
-    return $prop . '_id';
-  }
-
-
   /**
    * @param string $related
-   * @return \Orcses\PhpLib\Models\Model
+   * @return \Orcses\PhpLib\Models\Relationship\OneDimensional\HasOne
    */
   public function hasOne(string $related)
   {
-    return app()->make($related)
-      ->refreshState()
-      ->where([ $this->getIdProp() => $this->getKey() ])
-      ->limit(1);
+    return app()->build( HasOne::class, [
+      'parent' => $this,
+      'related' => $related
+    ]);
   }
 
 
   /**
    * @param string $related
-   * @return \Orcses\PhpLib\Models\Model
+   * @return \Orcses\PhpLib\Models\Relationship\OneDimensional\HasMany
    */
   public function hasMany(string $related)
   {
-    return app()->make($related)
-      ->refreshState()
-      ->where([ $this->getIdProp() => $this->getKey() ]);
+    return app()->build( HasMany::class, [
+      'parent' => $this,
+      'related' => $related
+    ]);
   }
 
 
   /**
    * @param string $related
-   * @return \Orcses\PhpLib\Models\Model
+   * @return \Orcses\PhpLib\Models\Relationship\OneDimensional\BelongsTo
    */
   public function belongsTo(string $related)
   {
-    $aa = app()->make( $related )
-      ->refreshState()
-      ->where([ $this->getIdProp() => $this->getKey() ])
-      ->limit(1);
-
-    pr(['usr' => __FUNCTION__, '$aa' => $aa, 'getIdProp' => $this->getIdProp(), 'getKey' => $this->getKey()]);
-
-    return $aa;
+    return app()->build( BelongsTo::class, [
+      'related' => $this,
+      'parent' => $related
+    ]);
   }
 
+
+  /**
+   * @param string $morph
+   * @return \Orcses\PhpLib\Models\Relationship\MultiDimensional\MorphsToOne
+   */
+  public function morphsToOne(string $morph)
+  {
+    return app()->build( MorphsToOne::class, [
+      'parent' => $this,
+      'morph' => $morph
+    ]);
+  }
+
+
+  /**
+   * @param string $morph
+   * @return \Orcses\PhpLib\Models\Relationship\MultiDimensional\morphsToMany
+   */
+  public function morphsToMany(string $morph)
+  {
+    return app()->build( morphsToMany::class, [
+      'parent' => $this,
+      'morph' => $morph
+    ]);
+  }
+
+
+  /**
+   * @return \Orcses\PhpLib\Models\Relationship\MultiDimensional\morphsTo
+   */
+  public function morphsTo()
+  {
+    return app()->build( morphsTo::class, [
+      'morph' => $this,
+    ]);
+  }
 
 
 }

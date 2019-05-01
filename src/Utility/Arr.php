@@ -37,6 +37,12 @@ class Arr
   //    $columns = Arr::each($columns, [Arr::class, 'pad'], 2, '');
 
 
+  public static function getExistingKeys(array $array, array $keys)
+  {
+    return array_intersect_key( array_flip($keys), $array );
+  }
+
+
   /**
    * Returns a part of the array specified in the @param $keys
    * Can replace the old keys with new keys
@@ -51,7 +57,7 @@ class Arr
    * @param bool $assoc If true (default), returns an associative array, else, returns indexed array
    * @return array
    */
-  public static function pick(array $array, array $keys, bool $remove = false, bool $assoc = true)
+  public static function getKeys(array $array, array $keys, bool $remove = false, bool $assoc = true)
   {
     $array = (array) $array;
     $keys = array_values($keys);
@@ -87,21 +93,15 @@ class Arr
   }
 
 
-  public static function pickOnly(array $array, array $keys, $assoc = true)
+  public static function pick(array $array, array $keys, $assoc = true)
   {
-    return Arr::pick($array, $keys, false, $assoc);
+    return Arr::getKeys($array, $keys, false, $assoc);
   }
 
 
-  public static function pickExcept(array $array, array $keys, $assoc = true)
+  public static function drop(array $array, array $keys, $assoc = true)
   {
-    return Arr::pick($array, $keys,true, $assoc);
-  }
-
-
-  public static function getExistingKeys(array $array, array $keys)
-  {
-    return array_intersect_key( array_flip($keys), $array );
+    return Arr::getKeys($array, $keys,true, $assoc);
   }
 
 
@@ -133,6 +133,12 @@ class Arr
   public static function keyValue(array $value)
   {
     return [ key($value), current($value) ];
+  }
+
+
+  public static function keysValues(array $value)
+  {
+    return [ array_keys($value), array_values($value) ];
   }
 
 

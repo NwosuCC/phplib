@@ -4,12 +4,12 @@ namespace Orcses\PhpLib\Notification;
 
 
 use Orcses\PhpLib\Files\File;
+use Orcses\PhpLib\Utility\Arr;
 use Orcses\PhpLib\Interfaces\Mail\Mailable;
 use Orcses\PhpLib\Interfaces\Mail\MailClient;
 use Orcses\PhpLib\Exceptions\InvalidArgumentException;
 use Orcses\PhpLib\Exceptions\Files\InvalidFileException;
 use Orcses\PhpLib\Exceptions\Base\FileNotFoundException;
-use Orcses\PhpLib\Utility\Arr;
 
 
 class Mailer implements Mailable

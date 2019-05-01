@@ -47,7 +47,7 @@ final class Application extends Foundation
     $this->set_default_timezone();
 
     // [Optional] Specify custom error handler for MysqlQuery operations
-    if($this->config['exceptions']['handler'] === 'log_info'){
+    if($this->config('exceptions.handler') === 'log_info'){
       $this->use_log_info_handler();
     }
 
@@ -74,10 +74,15 @@ final class Application extends Foundation
   }
 
 
-  public function config(string $key = ''){
+  public function config(string $key = '', string $file = 'app')
+  {
+    if( ! array_key_exists($file, $this->config)){
+
+      throw new InvalidArgumentException("Config group '{$file}' does not exist'");
+    }
+
     if($key){
-//      return $this->config[ $key ] ?? null;
-      return arr_get( $this->config, $key );
+      return arr_get( $this->config[ $file ], $key );
     }
 
     return $this->config;
@@ -98,13 +103,13 @@ final class Application extends Foundation
 
   protected function set_default_timezone()
   {
-    date_default_timezone_set( $this->config['timezone'] );
+    date_default_timezone_set( $this->config('timezone') );
   }
 
 
   private function use_log_info_handler()
   {
-    $target_classes = $this->config['exceptions']['target_classes'];
+    $target_classes = $this->config('exceptions.target_classes');
 
     foreach ($target_classes as $class){
       $log_info_parameters = [
@@ -143,7 +148,7 @@ final class Application extends Foundation
 
     [$target, $arguments, $attributes] = $route->props(['target', 'parameters', 'attributes']);
 
-    // Bind route parameters into request\][p
+    // Bind route parameters into request
     $request->setParams( $arguments );
 
     pr(['usr' => __FUNCTION__, '$target' => $target, '$arguments' => $arguments, '$attributes' => $attributes]);
@@ -236,13 +241,18 @@ final class Application extends Foundation
           $dependency->hydrate();
 
         }
-        elseif(is_a($dependency, Model::class)){
+        elseif(is_subclass_of($dependency, Model::class)){
           /**@var Model $dependency */
 
           // Inject Model dependencies into controller
           if(array_key_exists($parameter_name, $arguments)){
 
-            $dependency = Model::newFromObj($dependency, $arguments[ $parameter_name ]);
+            $dependency = Model::newFromRouteParam($dependency, $arguments[ $parameter_name ]);
+
+            if( ! $dependency){
+
+              $request->abort();
+            }
           }
         }
       }

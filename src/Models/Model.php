@@ -4,6 +4,7 @@ namespace Orcses\PhpLib\Models;
 
 
 use Carbon\Carbon;
+use Orcses\PhpLib\Exceptions\InvalidArgumentException;
 use Orcses\PhpLib\Utility\Arr;
 use Orcses\PhpLib\Utility\Str;
 use Orcses\PhpLib\Interfaces\Modelable;
@@ -104,16 +105,24 @@ abstract class Model
 
 
   /**
-   * Retrieves and returns an instance of the child model $obj having the specified $id
-   * For use esp. in DI into Controllers
+   * Retrieves and returns an instance of the child model having the supplied id
+   * For use especially in Dependency Injection into Controllers
    *
-   * @param Model   $obj  The child model object
+   * @param Model   $route_obj  The child model object
    * @param string  $id   The id of the object
    * @return Model
    */
-  public static function newFromObj(Model $obj, string $id)
+  public static function newFromRouteParam(Model $route_obj, string $id)
   {
-    return $obj->find( $id );
+    return $route_obj
+      ->where([ $route_obj->getRouteKeyName() => trim($id) ])
+      ->first();
+  }
+
+
+  public function getRouteKeyName()
+  {
+    return 'id';
   }
 
 
@@ -299,7 +308,7 @@ abstract class Model
     if($columns){
       $available_columns = Arr::getExistingKeys($this->attributes, $columns);
 
-      return Arr::pickOnly($this->attributes, array_keys($available_columns));
+      return Arr::pick($this->attributes, array_keys($available_columns));
     }
 
     return $this->attributes;
@@ -327,7 +336,7 @@ abstract class Model
 
   public function setAttribute(string $key, $value)
   {
-    if( ! $this->hasAttribute($key)){
+    if( ! $this->hasAttribute($key) && ! $this->hasTableColumn($key)){
       throw new AttributeNotFoundException($this->getModelName(), $key);
     }
 
@@ -683,6 +692,32 @@ abstract class Model
   }
 
 
+  private function sortLatest(Model $row, Model $next_row)
+  {
+    $date_1 = $this->dateTimeObject( $row->{static::$_CREATED_AT} );
+
+    $date_2 = $this->dateTimeObject( $next_row->{static::$_CREATED_AT} );
+
+    if ($date_1->equalTo($date_2)){
+      return 0;
+    }
+
+    return ($date_1->greaterThan($date_2)) ? -1 : 1;
+  }
+
+
+  public function latest()
+  {
+    ($this->result)
+
+      ? usort($this->rows, [$this, 'sortLatest'])
+
+      : $this->orderBy( static::$_CREATED_AT, 'DESC' );
+
+    return $this;
+  }
+
+
   public function limit( int $length, int $start = 0 )
   {
     $this->query()->limit($length, $start);
@@ -693,7 +728,7 @@ abstract class Model
 
   public function sun(string $column)
   {
-    $this->query()->sun($column);
+    $this->query()->sum($column);
 
     return $this;
   }
@@ -711,13 +746,12 @@ abstract class Model
 
   protected function canBeDeleted(bool $throw = false)
   {
-    pr(['usr' => __FUNCTION__, '$_DELETED_AT' => static::$_DELETED_AT, '$throw' => $throw, 'cols' => $this->table_columns]);
-
     $column = static::$_DELETED_AT;
 
     $can_be_deleted = $column && array_key_exists( $column, $this->getTableColumns() );
 
     if( ! $can_be_deleted && $throw){
+
       throw new InvalidOperationException(
         "Cannot call delete() on a model that does not have a 'deleted_at' column"
       );
@@ -747,8 +781,8 @@ abstract class Model
 
 
   public function get(){
+
     if( ! $this->result){
-      pr(['usr' => __FUNCTION__, 'result' => $this->result]);
 
       $this->rows = $this->withoutDeleted()->select()->all();
 //      $this->rows = new \ArrayObject( $this->query()->select()->all() );
@@ -767,93 +801,52 @@ abstract class Model
    */
   public function only(array $columns)
   {
-    $rows = [];
-
-    if($this->rows){
-
-      foreach ($this->rows as $row){
-        $rows[] = Arr::pickOnly($row->attributes, $columns);
-      }
-    }
-    pr(['usr' => __FUNCTION__, '$rows' => $rows]);
-
-    return $rows;
+    return $this->some( $columns, 'only' );
   }
 
 
   /**
    * Returns all rows with only the specified columns
-   * @param array $columns The columns to pick. All other columns are dropped
-   * @return $this
+   * @param array $columns  The columns to pick. All other columns are dropped
+   * @return array
    */
   public function except(array $columns)
   {
-    return $this->some( 'except', $columns);
+    return $this->some( $columns, 'except' );
   }
 
 
-  /*protected function some(string $filter, array $columns)
+  /**
+   * @param array  $columns  The columns to pick or drop
+   * @param string $op       Valid values: ['only', 'except']
+   * @return array
+   */
+  protected function some(array $columns, string $op)
   {
-    $filters = [
-      'only' => 'array_diff',
-      'except' => 'array_intersect'
+    $valid_ops = [
+      'only' => 'pick',
+      'except' => 'drop'
     ];
 
-    if( ! array_key_exists($filter, $filters)){
-      return null;
+    if( ! array_key_exists($op, $valid_ops)){
+
+      throw new InvalidArgumentException($op, __METHOD__);
     }
 
-    if($this->rows){
-      $attributes = array_keys( $this->rows[0]->attributes );
+    if( ! ($rows = $this->rows) && $this->exists()){
+      $single = true;
 
-      $filter_function = $filters[ $filter ];
-
-      $drop_columns = array_values(
-        call_user_func($filter_function, $attributes, $columns)
-      );
-
-      foreach ($this->rows as &$row){
-        $row = $row->removeAttributes($drop_columns);
-      }
+      $rows = [$this];
     }
 
-    return $this;
-  }*/
-  protected function some(string $filter, array $columns)
-  {
-    $filters = [
-      'only' => 'array_diff',
-      'except' => 'array_intersect'
-//      'only' => 'array_intersect',
-//      'except' => 'array_diff'
-    ];
+    $method = $valid_ops[ $op ];
 
-    if( ! array_key_exists($filter, $filters)){
-      return null;
-    }
+    $mapped = Arr::each($rows, function ($row) use($method, $columns){
 
-    $rows = [];
+      return call_user_func([Arr::class, $method], $row->attributes, $columns);
+    });
 
-    if($this->rows){
-      $attributes = array_keys( $this->rows[0]->attributes );
-
-      $filter_function = $filters[ $filter ];
-
-      $drop_columns = array_values(
-        call_user_func($filter_function, $attributes, $columns)
-      );
-
-      /*foreach ($this->rows as &$row){
-        $row = $row->removeAttributes($drop_columns);
-      }*/
-
-      foreach ($this->rows as $row){
-//        $rows[] = array_combine($new_columns, $row->attributes);
-      }
-    }
-    pr(['usr' => __FUNCTION__, '$drop_columns' => $drop_columns, '$rows' => $rows]);
-
-    return $this;
+    return $mapped && ! empty($single) ? $mapped[0] : $mapped;
   }
 
 
@@ -879,12 +872,6 @@ abstract class Model
   }
 
 
-  public function any($callback, ...$arguments)
-  {
-    return !! $this->filter( $callback, true, $arguments);
-  }
-
-
   public function toArray()
   {
     return $this->dehydrate();
@@ -901,7 +888,8 @@ abstract class Model
   }
 
 
-  protected function dehydrate() {
+  protected function dehydrate()
+  {
     $multiple = empty($this->single);
 
     $rows = $multiple ? $this->rows : [$this];
@@ -916,31 +904,41 @@ abstract class Model
   }
 
 
-  public function rows()
+  protected function rows()
   {
-    if( ! $this->result){
-      $this->get();
-    }
-
     return $this->rows;
   }
 
 
   public function count()
   {
+    $this->get();
+
     return count( $this->rows() );
   }
 
 
   public function first()
   {
+    $this->get();
+
     return ($rows = $this->rows()) ? reset($rows) : null;
   }
 
 
   public function last()
   {
+    $this->get();
+
     return ($rows = $this->rows()) ? end($rows) : null;
+  }
+
+
+  public function any($callback, ...$arguments)
+  {
+    $this->get();
+
+    return !! $this->filter( $callback, true, $arguments);
   }
 
 
@@ -1068,8 +1066,8 @@ abstract class Model
 
       ? $this->performUpdate()
 
-//      : $this->setNewStringId()->performInsert();
-      : $this->performInsert();
+      : $this->setNewStringId()->performInsert();
+//      : $this->performInsert();
   }
 
 

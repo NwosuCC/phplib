@@ -18,11 +18,37 @@ class Str
   }
 
 
+  /**
+   * @param       $number
+   * @param int   $precision
+   * @param bool  $round_up
+   * @return int | float | double
+   */
+  public static function roundNumber($number, int $precision = 2, bool $round_up = true)
+  {
+    $round_flag = $round_up ? PHP_ROUND_HALF_UP : PHP_ROUND_HALF_DOWN;
+
+    return round( $number, $precision, $round_flag);
+  }
+
+
+  public static function currency($number, array $options = null)
+  {
+    $precision = $options['precision'] ?? 2;
+
+    $round_up = (bool) ($options['round_up'] ?? false);
+
+    return static::roundNumber( $number, $precision, $round_up);
+  }
+
+
   public static function getNonPrintableChars()
   {
     if( ! static::$non_printable_chars){
       static::$non_printable_chars = array_map('chr', range(0, 31));
     }
+
+//    combo JS: return String( text ).replace(/[^ -~]+/g, "");
 
     return static::$non_printable_chars;
   }
@@ -236,6 +262,7 @@ class Str
   public static function replaces(string $subject, array $replaces)
   {
     foreach ($replaces as $find => $replace){
+
       $subject = str_replace('{'.$find.'}', $replace, $subject);
     }
 

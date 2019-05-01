@@ -19,7 +19,7 @@ class MysqlQuery extends Query {
 
   protected $caller = '';
 
-  protected $sql, $tempSql, $locked;
+  protected $sql, $tempSql, $restrained;
 
   protected $columns = [];
 
@@ -57,12 +57,16 @@ class MysqlQuery extends Query {
   }
 
 
-  private function attempt_A_I_ColumnFromTable()
+  protected function attempt_A_I_ColumnFromTable()
   {
     if($columns = $this->getTableColumns( $this->table() )){
 
-      if($columns = array_filter($columns, function($row){ return $row->Extra === 'auto_increment'; })){
-        return array_shift($columns)->Field;
+      $columns = Arr::where($columns, function($row){
+        return $row->{'Extra'} === 'auto_increment';
+      });
+
+      if($columns){
+        return array_shift($columns)->{'Field'};
       }
     }
 
@@ -73,9 +77,11 @@ class MysqlQuery extends Query {
   public function autoIncrementColumn(string $a_i_column = '')
   {
     if($a_i_column){
-      $this->a_i_column = $this->escape($a_i_column);
+
+      $this->a_i_column = $this->escape( $a_i_column );
     }
     else if( ! $this->a_i_column){
+
       $this->a_i_column = $this->attempt_A_I_ColumnFromTable();
     }
 
@@ -93,7 +99,7 @@ class MysqlQuery extends Query {
   /**
    * Prepares the query for execution. Escapes single- and double-quotes
    * @param array|string $values The values to escape
-   * @return array
+   * @return array|string
    */
   public function escape($values)
   {
@@ -129,7 +135,7 @@ class MysqlQuery extends Query {
    * @param string $column
    * @return array
    */
-  private static function getTableAliases(string $column)
+  protected static function getTableAliases(string $column)
   {
     $parts = Str::splitByChar($column, '.');
 
@@ -146,7 +152,7 @@ class MysqlQuery extends Query {
    * @param string $column
    * @return array
    */
-  private static function getColumnAliases($column)
+  protected static function getColumnAliases($column)
   {
     $aliases = Str::splitByChar($column, 'as');
 
@@ -154,7 +160,7 @@ class MysqlQuery extends Query {
   }
 
 
-  private static function isRawData(string $type, string $value = null)
+  protected static function isRawData(string $type, string $value = null)
   {
     if(is_null($value)){
       return false;
@@ -174,35 +180,35 @@ class MysqlQuery extends Query {
   }
 
 
-  private static function isTableColumn($value)
+  protected static function isTableColumn($value)
   {
     return static::isRawData('c', $value);
   }
 
 
   // $column is meant to be blank so only the corresponding value appears in the sql query
-  private static function isBlank($value)
+  protected static function isBlank($value)
   {
     return static::isRawData('b', $value);
   }
 
 
   // $column is a valid MySQL query/sub-query => no quotes
-  private static function isRawQuery($value)
+  protected static function isRawQuery($value)
   {
     return static::isRawData('q', $value);
   }
 
 
   // $column is a Value - should be single-quoted
-  private static function isRawValue($value)
+  protected static function isRawValue($value)
   {
     return static::isRawData('v', $value);
   }
 
 
   // $column is a is Logic Operator - 'isBlank' implicitly
-  private static function isLogicOperator($value)
+  protected static function isLogicOperator($value)
   {
     if(static::isRawData('a', $value)) {
       $logic_op = 'AND';
@@ -381,13 +387,12 @@ class MysqlQuery extends Query {
     $this->where([
       $id_column => ['IN', $id_group]
     ]);
-    pr(['usr' => __FUNCTION__, '$id_column' => $id_column, '$id_group' => $id_group]);
 
     if($existing_rows = $this->select([$id_column])->asArray()->all()){
 
       $existing_rows_id = array_column($existing_rows, $id_column);
 
-      $id_group = Arr::pickExcept( array_flip($existing_rows_id), array_flip($id_group) );
+      $id_group = Arr::drop( array_flip($existing_rows_id), array_flip($id_group) );
     }
 
     return $id_group ? array_slice($id_group, 0, $chunk) : null;
@@ -438,8 +443,8 @@ class MysqlQuery extends Query {
   /**
    * Returns the stored where clause for further in-code processing
    */
-  public function getTmpWhere(){
-    pr(['tmp' => __FUNCTION__, '$this->wheres Tmp' => $this->wheres, '$this->>where' => $this->where, '$this->orWhere' => $this->orWhere]);
+  public function getTmpWhere()
+  {
     return $this->getWhereClause(false);
   }
 
@@ -451,7 +456,7 @@ class MysqlQuery extends Query {
    */
   public function getWhereClause(bool $final = true)
   {
-//    pr(['usr' => __FUNCTION__, '$this->wheres 111' => $this->wheres, '$this->>where' => $this->where, '$this->orWhere' => $this->orWhere, '$final' => $final]);
+//    pr(['acc' => __FUNCTION__, '$this->wheres 111' => $this->wheres, '$this->>where' => $this->where, '$this->orWhere' => $this->orWhere, '$final' => $final]);
 
     $where = $this->getWhere();
 
@@ -468,10 +473,12 @@ class MysqlQuery extends Query {
 
       $where = trim( $this->wheres ? implode(' ', $this->wheres) : $where );
 
+      $this->wheres = [];
+
       $where = $where ? 'WHERE ' . $where : '';
     }
 
-//    pr(['usr' => __FUNCTION__, '$this->wheres 222' => $this->wheres, '$this->>where' => $this->where, '$this->orWhere' => $this->orWhere, '$where' => $where]);
+//    pr(['acc' => __FUNCTION__, '$this->wheres 222' => $this->wheres, '$this->>where' => $this->where, '$this->orWhere' => $this->orWhere, '$where' => $where]);
     return trim($where);
   }
 
@@ -501,11 +508,11 @@ class MysqlQuery extends Query {
   /**
    * Resets and returns whether or not to apply previously specified constraints. Default is false
    */
-  protected function doNotModify()
+  protected function isRestrained()
   {
-    $doNotModify = $this->locked;
+    $restrained = $this->restrained;
 
-    return ($this->locked = false) ?: $doNotModify;
+    return ($this->restrained = false) ?: $restrained;
   }
 
 
@@ -584,7 +591,7 @@ class MysqlQuery extends Query {
   /**
    * Returns the MySQL method to call in the next execution. One of ['query', 'multi_query']
    */
-  private function sqlMethod()
+  protected function sqlMethod()
   {
     $sqlMethod = $this->sqlMethod;
 
@@ -617,7 +624,7 @@ class MysqlQuery extends Query {
   }
 
 
-  private function commit()
+  protected function commit()
   {
     $dry_run = $this->dry_run;
 
@@ -649,7 +656,7 @@ class MysqlQuery extends Query {
    * Executes the stored query. Single query by default except another is explicitly set vie sqlMethod()
    * @return $this
    */
-  private function run()
+  protected function run()
   {
     if( ! $method = $this->sqlMethod()){
       $method = 'query';
@@ -664,7 +671,7 @@ class MysqlQuery extends Query {
       Logger::log('sql', [$this->connection->affected_rows, $sql]);
     }
 
-    pr(['usr' => __FUNCTION__, '$sql' => trim($sql),
+    pr(['acc' => __FUNCTION__, '$sql' => trim($sql),
       'affected_rows' => $this->connection->affected_rows,
       'field_count' => $this->connection->field_count,
       'num_rows' => $this->result->num_rows ?? '']);
@@ -683,7 +690,7 @@ class MysqlQuery extends Query {
    * Executes the stored multiple queries
    * @return $this
    */
-  private function run_multi()
+  protected function run_multi()
   {
     $this->sqlMethod = 'multi_query';
 
@@ -695,7 +702,7 @@ class MysqlQuery extends Query {
    * Fetches the affected rows after single or multiple queries are executed
    * @return void
    */
-  private function fetch()
+  protected function fetch()
   {
     $function = $this->assoc() ? 'fetch_assoc' : 'fetch_object';
 
@@ -726,7 +733,7 @@ class MysqlQuery extends Query {
       // Retrieve the multi-query parameters previously stored in multi_queries()
       $keys = ['queries', 'labels', 'use_result'];
 
-      list($this->sql, $labels, $return_result) = Arr::pickOnly($this->multi, $keys, false);
+      list($this->sql, $labels, $return_result) = Arr::pick($this->multi, $keys, false);
 
       $queries = explode(';', $this->sql);
       $labels = array_reverse($labels);
@@ -821,7 +828,7 @@ class MysqlQuery extends Query {
   }
 
 
-  private function validateQueryValues(array $values, string $query = '')
+  protected function validateQueryValues(array $values, string $query = '')
   {
     $values_count = count($values);
 
@@ -851,7 +858,7 @@ class MysqlQuery extends Query {
    *
    * @return string
    */
-  private function setQueryValues(array $values, string $query = '')
+  protected function setQueryValues(array $values, string $query = '')
   {
     $valid_args = $this->validateQueryValues($values, $query);
 
@@ -918,6 +925,7 @@ class MysqlQuery extends Query {
     return $this->setQueryValues($values, $query);
   }
 
+
   /**
    * @param array $values
    * @param string $query  See setQueryValues() for how param $query may be empty
@@ -928,7 +936,6 @@ class MysqlQuery extends Query {
     $this->caller = $this->caller() ?: __FUNCTION__;
 
     $this->where = trim( $this->setQueryValues($values, $query));
-    pr(['usr' => __FUNCTION__, 'where' => $this->where]);
 
     return $this;
   }
@@ -936,8 +943,8 @@ class MysqlQuery extends Query {
 
   public function orWhere($column, $operator = null, $value = null)
   {
-    // getTmpWhere() can only be non-empty here iff where() has been previously called
     if($tmp_where = $this->getTmpWhere()){
+
       $this->wheres[] = $tmp_where;
     }
 
@@ -949,59 +956,42 @@ class MysqlQuery extends Query {
 
     foreach($columns_values as $column => $value){
 
-//      if(is_numeric($column) && is_array($value)){
       if($join = static::isLogicOperator($column)){
+
         $where = $this->orWhere($value)->getOrWhere();
 
-        pr(['lgc' => __FUNCTION__, 'OR recurse 000 $where' => $where, '$count' => $count, '$where_or' => $where_or]);
-//        $where_or[] = Str::stripLeadingChar( $where, 'OR' );
         $where_or[] = trim( $join .' '. $where);
-        pr(['lgc' => __FUNCTION__, 'OR recurse 111 $where' => $where, '$count' => $count, '$where_or' => $where_or]);
       }
       else {
-        $where_and[] = trim( $this->where([$column => $value])->getTmpWhere());
+        $where_and[] = $this->whereClause([$column => $value])->getTmpWhere();
       }
     }
 
-//    $where_or = trim( implode(' OR ', $where_or));
-//    $where_or = implode(' ', $where_or);
-
-    pr(['lgc' => __FUNCTION__, 'OR initial $where_and' => $where_and, '$count' => $count, '$where_or' => $where_or, '$where' => $this->where, '$wheres' => $this->wheres]);
-
     if($where_and){
-//      $where_or = $where_or ? ' OR ('. $where_or .')' : '';
-
-      pr(['lgc' => __FUNCTION__, 'OR inside 000 $where_and' => $where_and, '$count' => $count, '$where_or' => $where_or, '$where' => $this->where, '$wheres' => $this->wheres]);
 
       if($where_and = trim( implode(' AND ', $where_and))){
+
         array_unshift($where_or, $where_and);
       }
-
-//      $where_or = $where_and ? 'OR ('. $where_and . $where_or .')' : '';
-
-//      $where_or = $where_and ? $where_and .' '. $where_or : '';
     }
 
     if($where_or){
+
       if( ! $where_and && $count > 1){
+
         $where_or[0] = Str::stripLeadingChar( $where_or[0], 'OR');
+
         $where_or[0] = Str::stripLeadingChar( $where_or[0], 'AND');
       }
 
       $where_or = implode(' ', $where_or);
 
-      $or = $tmp_where ? 'OR ' : '';
-
       if($count > 1){
         $where_or = '('. $where_or .')';
       }
 
-      $where_or = $or . $where_or;
-      pr(['lgc' => __FUNCTION__, 'OR inside 111 $where_and' => $where_and, '$count' => $count, '$where_or' => $where_or, '$where' => $this->where, '$wheres' => $this->wheres]);
+      $where_or = ($tmp_where ? 'OR ' : '') . $where_or;
     }
-
-    //    $where_or = implode(' ', $where_or);
-    pr(['lgc' => __FUNCTION__, 'OR final $where_and' => $where_and, '$where_or' => $where_or]);
 
     $this->orWhere = $where_or;
 
@@ -1009,16 +999,16 @@ class MysqlQuery extends Query {
   }
 
 
-  public function andWhere($column, $operator = null, $value = null){
+  public function andWhere($column, $operator = null, $value = null)
+  {
     if($where = $this->getTmpWhere()){
+
       $this->wheres[] = $where;
     }
-    pr(['usr' => __FUNCTION__, '111 $where' => $where, '$this->wheres' => $this->wheres, '$this->>where' => $this->where]);
 
-    $where = $this->where($column, $operator, $value)->getTmpWhere();
+    $where = $this->whereClause($column, $operator, $value)->getTmpWhere();
 
     $this->wheres[] = 'AND (' . trim($where) . ')';
-    pr(['usr' => __FUNCTION__, '222 $where' => $where, '$this->wheres' => $this->wheres, '$this->>where' => $this->where]);
 
     return $this;
   }
@@ -1027,11 +1017,11 @@ class MysqlQuery extends Query {
   protected function nullClause(string $column, bool $not = false)
   {
     $column = $this->add_quotes_Columns($column);
-    pr(['tmp' => __FUNCTION__, '$not' => $not, '$column' => $column, '$where' => $this->where, '$this->wheres' => $this->wheres]);
 
     $not = $not ? '!' : '';
 
     if( $this->wheres ) {
+
       $this->wheres[] = "AND {$not} isnull({$column})";
     }
     else{
@@ -1056,6 +1046,26 @@ class MysqlQuery extends Query {
 
   public function where($column, $operator = null, $value = null)
   {
+    if($where = $this->getTmpWhere()){
+
+      $this->wheres[] = $where;
+    }
+
+    if( $where || $this->wheres) {
+
+      $this->andWhere($column, $operator, $value);
+    }
+    elseif($where = $this->whereClause($column, $operator, $value)->getTmpWhere()){
+
+      $this->wheres[] = $where;
+    }
+
+    return $this;
+  }
+
+
+  protected function whereClause($column, $operator = null, $value = null)
+  {
     $this->where = $this->orWhere = null;
 
     $columns_values = $this->getWhereColumnValues($column, $operator, $value);
@@ -1075,8 +1085,6 @@ class MysqlQuery extends Query {
         $where = $this->orWhere([$column => $value])->getOrWhere();
 
         $where_or[] = trim($where);
-
-        pr(['lgc' => __FUNCTION__, 'aftr recurse $where' => $where, '$where_or' => $where_or]);
       }
       else {
         $column_is_blank = static::isBlank($column);
@@ -1094,34 +1102,21 @@ class MysqlQuery extends Query {
       }
     }
 
-    pr(['lgc' => __FUNCTION__, 'where_and 00' => $where_and, '$where_or' => $where_or, '$this->where' => $this->where]);
     if($where_or){
-      pr(['lgc' => __FUNCTION__, 'b4 strip OR $where_or' => $where_or]);
+
       if( ! $where_and){
+
         $where_or[0] = Str::stripLeadingChar( $where_or[0], 'OR');
+
         $where_or[0] = Str::stripLeadingChar( $where_or[0], 'AND');
       }
-//
-//      foreach($where_or as $join => $clauses){
-//        $where_or[$join] = implode(" {$join} ", $where_or[$join]);
-//      }
-      pr(['lgc' => __FUNCTION__, 'b4 implode OR $where_or' => $where_or]);
 
-//      $where_or = '(' . implode(' ', $where_or) . ')';
       $where_or = implode(' ', $where_or);
-      pr(['lgc' => __FUNCTION__, 'aftr implode OR $where_or' => $where_or, '$where_and' => $where_and]);
 
-//      $where_and[] = ($where_and ?  'OR ' : '') . $where_or;
       $where_and[] = $where_or;
-      pr(['lgc' => __FUNCTION__, 'aftr join where_and 00' => $where_and, '$where_or' => $where_or]);
     }
 
-    pr(['lgc' => __FUNCTION__, 'where_and 11' => $where_and, '$this->where' => $this->where]);
-
     $this->where = ($where_and) ? implode(' ', $where_and) : '';
-
-    pr(['lgc' => __FUNCTION__, 'where_and 22' => $where_and, '$this->where' => $this->where]);
-    pr(['usr' => __FUNCTION__, '$this->wheres' => $this->wheres, '$this->>where' => $this->where]);
 
     return $this;
   }
@@ -1130,9 +1125,11 @@ class MysqlQuery extends Query {
   protected function getWhereColumnValues($column, $operator = null, $value = null)
   {
     if(is_array($column)) {
+
       $columns_values = $column;
     }
     elseif(func_num_args() === 2){
+
       $columns_values = [$column => ($value = $operator)];
     }
     else {
@@ -1143,15 +1140,20 @@ class MysqlQuery extends Query {
   }
 
 
-  protected function getOperatorValue($value){
+  protected function getOperatorValue($value)
+  {
     $ops = [
       'equals' => $equals = ['=', '!=', '<', '<=', '>', '>='],
+
       'in' => $in = ['IN','NOT IN'],
+
       'equals_in' => $equals_in = array_merge( $equals, $in),
+
       'between' => $between = ['BETWEEN','NOT BETWEEN'],
     ];
 
     if( ! is_array($value)){
+
       $operator = '=';
 
       $value = $this->add_quotes_Values($value);
@@ -1162,15 +1164,18 @@ class MysqlQuery extends Query {
       $value = $this->add_quotes_Values( Arr::unwrap($value) );
 
       if( in_array($operator, $ops['between']) ){
+
         $value = $value[0] .' AND '. $value[1];
       }
       else if( in_array($operator, $ops['equals_in']) ){
 
         if(in_array($operator, $ops['in'])){
+
           $value = '(' . implode(',', $value) . ')';
         }
 
         if(in_array($operator, $ops['equals'])){
+
           $value = array_shift($value);
         }
       }
@@ -1209,7 +1214,9 @@ class MysqlQuery extends Query {
   public function all()
   {
     if($this->multi){
+
       if($this->isNewQuery){
+
         $this->compileSelect()->run_multi()->fetch();
       }
     }
@@ -1239,29 +1246,11 @@ class MysqlQuery extends Query {
   }
 
 
-  public function lastInsertId(array $columns = [])
+  public function lastWriteRow(array $columns = [])
   {
     if($a_i_column = $this->autoIncrementColumn()){
 
-      $this->where([
-        "$a_i_column" => 'LAST_INSERT_ID()|q'
-      ]);
-
-      return $this->select($columns)->last();
-    }
-
-    return null;
-  }
-
-
-  public function lastModifiedRow(array $columns)
-  {
-    if($a_i_column = $this->autoIncrementColumn()){
-      $columns[] = $a_i_column;
-
-      $this->orderBy($a_i_column, 'desc');
-
-      $this->limit(1);
+      $this->where([ $a_i_column => 'LAST_INSERT_ID()|q' ]);
 
       return $this->select($columns)->first();
     }
@@ -1270,37 +1259,18 @@ class MysqlQuery extends Query {
   }
 
 
-  public function getLastParams(array $columns)
-  {
-    $lastInsertId = $lastRow = null;
-
-    if($rows = $this->count()){
-      $lastInsertId = $this->lastInsertId($columns);
-
-      $lastRow = static::lastModifiedRow($columns);
-    }
-
-    return [
-      'rows' => $rows, 'lastInsertId' => $lastInsertId, 'lastRow' => $lastRow
-    ];
-  }
-
-
   protected function compileSelect()
   {
-    pr(['usr' => __FUNCTION__, 'columns' => $this->columns]);
     $this->columns = implode(',', array_merge( ...$this->columns ) );
-
-    pr(['usr' => __FUNCTION__, '$this->wheres' => $this->wheres, '$this->where' => $this->where, '$this->orWhere' => $this->orWhere,
-      '$this->sql' => $this->sql, 'columns' => count($this->columns)]);
 
     $composition = [
       'SELECT', $this->columns, 'FROM', $this->table(),
       $this->getWhereClause(), $this->getOrder(), $this->getLimit()
     ];
 
-    $this->sql = implode(' ', $composition);
-    pr(['usr' => __FUNCTION__, '$this->wheres' => $this->wheres, '$this->where' => $this->where, '$this->orWhere' => $this->orWhere,
+    $this->sql = trim( Str::trimMultipleSpaces( implode(' ', $composition)));
+
+    pr(['acc' => __FUNCTION__, '$this->wheres B4 RUN' => $this->wheres, '$this->where' => $this->where, '$this->orWhere' => $this->orWhere,
       '$this->sql' => $this->sql, 'columns' => count($this->columns)]);
 
     $this->columns = [];
@@ -1325,8 +1295,6 @@ class MysqlQuery extends Query {
 
   public function select(array $columns = [])
   {
-    pr(['usr' => __FUNCTION__, 'columns 000' => $columns]);
-
     if($this->columns && ! $columns){
       return $this;
     }
@@ -1334,7 +1302,6 @@ class MysqlQuery extends Query {
     $columns = empty($columns) ? ['*'] : $columns;
 
     $this->columns[] = $this->add_quotes_Columns( $this->escape($columns), true);
-    pr(['usr' => __FUNCTION__, 'columns 111' => $columns, '$this->columns' => $this->columns]);
 
     return $this;
   }
@@ -1344,7 +1311,7 @@ class MysqlQuery extends Query {
   {
     $this->where($where_values);
 
-    $this->locked = $this->select()->count() > 0;
+    $this->restrained = $this->select()->count() > 0;
 
     return $this;
   }
@@ -1359,7 +1326,9 @@ class MysqlQuery extends Query {
     $all_update_values = [];
 
     foreach ($update_values as $column => $value){
+
       $value = $this->add_quotes_Values( $this->escape([$value]));
+
       $all_update_values[] = "$column = " . array_shift($value);
     }
 
@@ -1374,20 +1343,13 @@ class MysqlQuery extends Query {
   public function insert(array $columns, array $values = [])
   {
     // If a previous constraint prevents this operation, abort. E.g, see insertUnique()
-    if($this->doNotModify()){
+    if($this->isRestrained()){
       return false;
     }
 
     if(func_num_args() === 1){
-      list($columns, $values) = [array_keys($columns), array_values($columns)];
 
-      /*$columns_values = $columns;
-
-      $columns = sort( array_keys($columns_values));
-
-      ksort($columns_values);
-
-      $values = array_values($columns_values);*/
+      list($columns, $values) = Arr::keysValues( $columns );
 
       $values = [$values];
     }
@@ -1396,11 +1358,12 @@ class MysqlQuery extends Query {
 
     $insert_columns = '(' . implode(',', $columns) . ')';
 
-    $values = $this->escape($values);
+    $values = $this->escape( $values );
 
     $insert_values = $rows = [];
 
     foreach ($values as $value){
+
       $value = $this->add_quotes_Values( $this->escape($value) );
 
       $insert_values[] = '(' . implode(',', $value) . ')';
@@ -1412,25 +1375,30 @@ class MysqlQuery extends Query {
       'INSERT INTO', $this->table(), $insert_columns, 'VALUES', $rows
     ];
 
-    $this->sql = implode(' ', $composition);
+    $this->sql = trim( Str::trimMultipleSpaces( implode(' ', $composition)));
+    pr(['usr' => __FUNCTION__, '$this->sql' => $this->sql]);
+
+//    return $this->run()->getReturnValue('insert');
 
     if($this->run()->result){
-      $result = $this->lastInsertId();
+
+      return $this->lastWriteRow() ?: $this->connection->affected_rows;
     }
 
-    return ($this->result && !empty($result)) ? $result : $this->connection->affected_rows;
+    return false;
   }
 
 
   public function update(array $updates)
   {
-    if($this->doNotModify()){
+    if($this->isRestrained()){
       return false;
     }
 
     $columns_values = [];
 
     foreach ($updates as $column => $value){
+
       $column = $this->add_quotes_Columns( $this->escape($column) );
 
       list($value) = $this->add_quotes_Values( $this->escape([$value]) );
@@ -1439,6 +1407,7 @@ class MysqlQuery extends Query {
     }
 
     // 'LAST_INSERT_ID' here tracks and returns the last updated row
+    // Returns the first row if more than one row is updated
     if($a_i_column = $this->autoIncrementColumn() ){
 
       $a_i_column = $this->add_quotes_Columns( $a_i_column );
@@ -1458,24 +1427,55 @@ class MysqlQuery extends Query {
       'UPDATE', $table = $this->table(), 'SET', $columns_values, $where
     ];
 
-    $this->sql = implode(' ', $composition);
+    $this->sql = trim( Str::trimMultipleSpaces( implode(' ', $composition)));
     pr(['usr' => __FUNCTION__, '$this->sql' => $this->sql]);
 
-    if($this->run()->result){
-      // ToDo: add this as an option in config.database
-      // E.g "on_update" return ['1' => true|false, '2' => 'affected_rows', '3' => 'last_updated_row']
+//    return $this->run()->getReturnValue('update');
 
-//      $result = $this->lastInsertId();
+    return $this->run()->result ? $this->connection->affected_rows : false;
+  }
+
+
+
+  /**
+   * Possible return values:
+   *  '1' => 'affected_rows'  [default]
+   *  '2' => 'boolean'
+   *  '3' => 'last_write_row'
+   *
+   * @param string  $op
+   * @return string
+   */
+  protected function getReturnValue(string  $op)
+  {
+    $op_values = [
+      'insert' => 'on_insert_return',
+      'update' => 'on_update_return'
+    ];
+
+    $option = $op_values[ $op ] ?? null;
+
+    $return_option = (! $option || $this->connection->affected_rows > 1)
+      ? '1'
+      : strval($this->options[ $option ]);
+
+    switch( $return_option ){
+      case '2' : {
+        return !! $this->connection->affected_rows;
+      }
+      case '3' : {
+        return $this->result ? $this->lastWriteRow() : null;
+      }
+      default : {
+        return $this->connection->affected_rows;
+      }
     }
-
-//    return ($this->result && !empty($result)) ? $result : $this->connection->affected_rows;
-    return !! $this->connection->affected_rows;
   }
 
 
   public function delete()
   {
-    if($this->doNotModify()){
+    if($this->isRestrained()){
       return false;
     }
 
@@ -1550,7 +1550,8 @@ class MysqlQuery extends Query {
       $columns = str_replace('@', '', $columns);
 
 //      return $this->getLastParams($columns, $a_i_column);
-      return $this->getLastParams($columns);
+//      return $this->getLastParams($columns);
+      return $this->result;
     }
 
     return false;
@@ -1631,5 +1632,3 @@ class MysqlQuery extends Query {
 
 
 }
-
-?>
