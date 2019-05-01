@@ -64,7 +64,7 @@ class Builder
     $properties = $length ? [Column::LENGTH => $length] : [];
 
     $this->addColumn(
-    // ToDo: use app()->build()
+    // ToDo: use app()->build();
       $column = new NumericColumn( $name, $type, $properties )
     );
 
