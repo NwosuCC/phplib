@@ -40,7 +40,7 @@ abstract class Column
   protected $properties;
 
   protected $props = [
-    'length', 'null', 'default', 'primary', 'comment', 'expression', 'after'
+    self::LENGTH, self::NULL, self::DEFAULT, self::PRIMARY, self::COMMENT, self::EXPRESSION, self::AFTER
   ];
 
   // name
@@ -52,7 +52,7 @@ abstract class Column
   // indexes : primary, unique, spatial
 
 
-  public function __construct(string $name, string $type, array $properties = null)
+  public function __construct(string $name, ColumnType $type, array $properties = null)
   {
     $this->setName( $name );
 
@@ -70,7 +70,8 @@ abstract class Column
 
   protected function setProperties()
   {
-    $this->props = array_unique( $this->props + $this->getProps() );
+    $this->props = array_unique( array_merge( $this->props, $this->getProps() ) );
+    pr(['usr' => __FUNCTION__, '$this->props' => $this->props, '$this->properties' => $this->properties]);
 
     foreach ($this->properties as $property => $value) {
 
@@ -102,7 +103,7 @@ abstract class Column
   }
 
 
-  public function setType(string $type)
+  public function setType(ColumnType $type)
   {
     $this->type = $type;
 
@@ -118,8 +119,6 @@ abstract class Column
 
   public function setLength(int $length)
   {
-    // If this column is REAL NUMBER, set the Precision and Scale
-
     $this->length = $length;
 
     return $this;
@@ -132,7 +131,7 @@ abstract class Column
   }
 
 
-  public function setNull(bool $flag)
+  public function setNull(bool $flag = true)
   {
     $this->null = $flag;
 
@@ -211,6 +210,15 @@ abstract class Column
   public function getAfter()
   {
     return $this->after;
+  }
+
+
+  protected function getDefaultLengthForType()
+  {
+    $type = strtoupper( $this->getType() );
+
+    // ToDo: resolve this
+    return ;
   }
 
 

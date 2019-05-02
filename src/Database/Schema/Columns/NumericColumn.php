@@ -5,9 +5,23 @@ namespace Orcses\PhpLib\Database\Schema\Columns;
 
 class NumericColumn extends Column
 {
+  const NUMBERS_INT = [
+    ColumnType::BIGINT,
+    ColumnType::INT,
+    ColumnType::MEDIUM_INT,
+    ColumnType::SMALL_INT,
+    ColumnType::TINY_INT
+  ];
+
+  const NUMBERS_REAL = [
+    ColumnType::DECIMAL,
+    ColumnType::FLOAT,
+    ColumnType::DOUBLE
+  ];
+
   const SIGNED = 'signed';
-  const ZERO_FILL = 'zerofill';
-  const AUTO_INCREMENT = 'auto_increment';
+  const ZEROFILL = 'zerofill';
+  const AUTOINCREMENT = 'auto_increment';
   const PRECISION = 'precision';
   const SCALE = 'scale';
 
@@ -25,12 +39,16 @@ class NumericColumn extends Column
   protected function getProps()
   {
     return [
-      'signed', 'zerofill', 'auto_increment', 'precision', 'scale'
+      self::SIGNED, self::ZEROFILL, self::AUTOINCREMENT, self::PRECISION, self::SCALE
     ];
   }
 
 
-  public function setSigned(bool $flag)
+  /**
+   * @param bool $flag
+   * @return NumericColumn
+   */
+  public function setSigned(bool $flag = true)
   {
     $this->signed = $flag;
 
@@ -44,19 +62,27 @@ class NumericColumn extends Column
   }
 
 
-  public function setZeroFill(bool $flag)
+  /**
+   * @param bool $flag
+   * @return NumericColumn
+   */
+  public function setZerofill(bool $flag = true)
   {
     $this->zerofill = $flag;
   }
 
 
-  public function getZeroFill()
+  public function getZerofill()
   {
     return $this->zerofill;
   }
 
 
-  public function setAutoIncrement(bool $flag)
+  /**
+   * @param bool $flag
+   * @return NumericColumn
+   */
+  public function setAutoIncrement(bool $flag = true)
   {
     $this->auto_increment = $flag;
   }
@@ -68,7 +94,23 @@ class NumericColumn extends Column
   }
 
 
-  public function setPrecision(int $precision)
+  protected function isIntNumber()
+  {
+    return in_array( $this->getType(), self::NUMBERS_INT );
+  }
+
+
+  protected function isRealNumber()
+  {
+    return in_array( $this->getType(), self::NUMBERS_REAL );
+  }
+
+
+  /**
+   * @param int $precision
+   * @return NumericColumn
+   */
+  public function setPrecision(int $precision = null)
   {
     // First, check that this column is REAL NUMBER.
     // Set the Significant Digits ==> Overrides 'length' property
@@ -85,7 +127,11 @@ class NumericColumn extends Column
   }
 
 
-  public function setScale(int $scale)
+  /**
+   * @param int $scale
+   * @return NumericColumn
+   */
+  public function setScale(int $scale = null)
   {
     // First, check that this column is REAL NUMBER.
     // Set the Decimal Places ==> Overrides 'length' property
@@ -99,6 +145,23 @@ class NumericColumn extends Column
   public function getScale()
   {
     return $this->scale;
+  }
+
+
+  // Called at final properties collation
+  protected function augmentProperties()
+  {
+    $length = $this->getLength();
+
+    if( ! $length || $length < 0){
+      $length = $this->getDefaultLengthForType();
+    }
+
+    // If this column is REAL NUMBER, set the Precision and Scale
+    if($this->isRealNumber()){
+
+      $this->setPrecision();
+    }
   }
 
 

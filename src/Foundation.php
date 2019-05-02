@@ -178,14 +178,14 @@ class Foundation
 
 
   /**
-   * Builds an instance of the supplied class name using the supplied arguments
-   * @param $class_name
-   * @param array $arguments
+   * Builds an instance of the class using the supplied dependencies
+   * @param string $class_name   E.g: Auth::class
+   * @param array  $dependencies E.g: ['user' => $user_instance]
    * @return mixed
    */
-  public function build(string $class_name, array $arguments)
+  public function build(string $class_name, array $dependencies)
   {
-    return $this->container->make( $class_name, $arguments );
+    return $this->container->make( $class_name, $dependencies );
   }
 
 
