@@ -3,8 +3,10 @@
 namespace Orcses\PhpLib\Database\Schema\Columns;
 
 
-class StringColumn extends Column
+class ArrayColumn extends Column
 {
+
+  // string[] : Enum, Set, etc
 
   protected function onCreate()
   {

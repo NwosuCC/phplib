@@ -3,6 +3,9 @@
 namespace Orcses\PhpLib\Database\Schema\Columns;
 
 
+use Orcses\PhpLib\Exceptions\InvalidArgumentException;
+use Orcses\PhpLib\Utility\Arr;
+
 class NumericColumn extends Column
 {
   const NUMBERS_INT = [
@@ -19,17 +22,17 @@ class NumericColumn extends Column
     ColumnType::DOUBLE
   ];
 
-  const SIGNED = 'signed';
+  const UNSIGNED = 'unsigned';
   const ZEROFILL = 'zerofill';
   const AUTOINCREMENT = 'auto_increment';
   const PRECISION = 'precision';
   const SCALE = 'scale';
 
-  protected $signed = true;
+  protected $unsigned;
 
-  protected $zerofill = false;
+  protected $zerofill;
 
-  protected $auto_increment = false;
+  protected $auto_increment;
 
   protected $precision;
 
@@ -39,36 +42,64 @@ class NumericColumn extends Column
   protected function getProps()
   {
     return [
-      self::SIGNED, self::ZEROFILL, self::AUTOINCREMENT, self::PRECISION, self::SCALE
+      self::UNSIGNED, self::ZEROFILL, self::AUTOINCREMENT, self::PRECISION, self::SCALE
     ];
   }
 
 
+  protected function onCreate()
+  {
+    $this->syncDecimalProps();
+  }
+
+
   /**
-   * @param bool $flag
+   * Sets the Precision and Scale from the Length iff this column is Type DECIMAL
+   */
+  protected function syncDecimalProps()
+  {
+    if( ! $this->isDecimal()){
+      return;
+    }
+
+    $length = $this->getLength() ?: ColumnType::decimal()->getDefaultLength();
+
+    $length = Arr::stripEmpty( explode(',', $length));
+
+    if($length && count($length) === 2){
+
+      $this->setPrecision( (int) $length[0] );
+
+      $this->setScale( (int) $length[1] );
+    }
+  }
+
+
+  /**
    * @return NumericColumn
    */
-  public function setSigned(bool $flag = true)
+  public function setUnsigned()
   {
-    $this->signed = $flag;
+    $this->unsigned = true;
 
     return $this;
   }
 
 
-  public function getSigned()
+  public function getUnsigned()
   {
-    return $this->signed;
+    return $this->unsigned;
   }
 
 
   /**
-   * @param bool $flag
    * @return NumericColumn
    */
-  public function setZerofill(bool $flag = true)
+  public function setZerofill()
   {
-    $this->zerofill = $flag;
+    $this->zerofill = true;
+
+    return $this;
   }
 
 
@@ -79,18 +110,41 @@ class NumericColumn extends Column
 
 
   /**
-   * @param bool $flag
-   * @return NumericColumn
+   * @return null | NumericColumn
    */
-  public function setAutoIncrement(bool $flag = true)
+  public function setAutoIncrement()
   {
-    $this->auto_increment = $flag;
+    if( ! $this->isIntNumber()){
+      // If called as part of new Column initialization, ignore Error and return
+      if( ! $this->isCreated()){ return null; }
+
+      throw new InvalidArgumentException(
+        "AutoIncrement can only be set on integer numbers: " . implode(',',self::NUMBERS_INT)
+      );
+    }
+
+    // If $flag === true, 'auto_increment' replaces the 'default'
+    $this->setNoDefault(true);
+
+    $this->auto_increment = true;
+
+    return $this;
   }
 
 
   public function getAutoIncrement()
   {
     return $this->auto_increment;
+  }
+
+
+  public function setDefault(string $default = null)
+  {
+    if( ! $this->getType()->matchesValue( $default )){
+      return $this;
+    }
+
+    return parent::setDefault( $default );
   }
 
 
@@ -103,6 +157,12 @@ class NumericColumn extends Column
   protected function isRealNumber()
   {
     return in_array( $this->getType(), self::NUMBERS_REAL );
+  }
+
+
+  protected function isDecimal()
+  {
+    return $this->getType()->getName() === ColumnType::DECIMAL;
   }
 
 
@@ -145,23 +205,6 @@ class NumericColumn extends Column
   public function getScale()
   {
     return $this->scale;
-  }
-
-
-  // Called at final properties collation
-  protected function augmentProperties()
-  {
-    $length = $this->getLength();
-
-    if( ! $length || $length < 0){
-      $length = $this->getDefaultLengthForType();
-    }
-
-    // If this column is REAL NUMBER, set the Precision and Scale
-    if($this->isRealNumber()){
-
-      $this->setPrecision();
-    }
   }
 
 

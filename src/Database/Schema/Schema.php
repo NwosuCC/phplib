@@ -62,7 +62,40 @@ class Schema
 
   protected function run()
   {
-    return $this->callback->call($this, new BluePrint($this->table));
+    $blue_print = new BluePrint( $this->table );
+
+    $this->callback->call($this, $blue_print);
+
+    $table = $blue_print->getTable();
+
+    $cols = $blue_print->getColumns();
+
+    pr(['usr' => __FUNCTION__, 'table' => $table, 'cols' => $cols]);
+
+    $table_def = [];
+
+    foreach ($cols as $col){
+      $col_type = $col->getType();
+
+      $length = ($n = $col->getLength()) ? "({$n})" : '';
+
+      $null = ($col->getNull() ? '' : ' NOT') . ' NULL';
+
+      $default_value = is_null($dv = $col->getDefault()) ? 'NULL' : $dv;
+
+      $default = $col->getNoDefault() ? '' : ' DEFAULT ' . "'{$default_value}'";
+
+      pr(['usr' => __FUNCTION__, 'type name' => $col_type->getName(), 'type def_length' => $col_type->getDefaultLength(),
+        'length' => $col->getLength(), 'props' => $col->getProperties()]);
+
+      $table_def[] = "`{$col->getName()}` {$col_type->getName()}{$length}{$null}{$default}";
+
+      pr(['usr' => __FUNCTION__, '$clause' => end($table_def)]);
+    }
+
+    $table_definition = implode(', ', $table_def);
+
+    pr(['usr' => __FUNCTION__, '$table_definition' => $table_definition]);
   }
 
 

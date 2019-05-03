@@ -31,7 +31,7 @@ class BluePrint
     ];
 
     return $this->addNumericColumn(
-      $name, ColumnType::bigInt(), $this->resolveLengthProp( $length, $properties )
+      $name, ColumnType::bigInt(), $this->mergeProps( $length, $properties )
     );
   }
 
@@ -50,7 +50,7 @@ class BluePrint
   public function string(string $name, int $length = null)
   {
     return $this->addStringColumn(
-      $name, ColumnType::varChar(), $this->resolveLengthProp( $length )
+      $name, ColumnType::varChar(), $this->mergeProps( $length )
     );
   }
 
@@ -61,7 +61,7 @@ class BluePrint
   }
 
 
-  protected function resolveLengthProp(int $length = null, array $properties = null)
+  protected function mergeProps(int $length = null, array $properties = null)
   {
     if(is_null($properties)){
       $properties = [];
@@ -118,8 +118,21 @@ class BluePrint
       throw new DuplicateColumnException( $column_name, $this->table->getName() );
     }
 
+    $this->columns_index[] = $column_name;
+
     $this->columns[ $column_name ] = $column;
   }
 
+
+  public function getTable()
+  {
+    return $this->table ;
+  }
+
+
+  public function getColumns()
+  {
+    return $this->columns;
+  }
 
 }

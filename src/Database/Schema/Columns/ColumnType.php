@@ -25,11 +25,14 @@ class ColumnType
   const FLOAT = 'FLOAT';
   const DOUBLE = 'DOUBLE';
 
+  const ENUM = 'ENUM';
+  const SET = 'SET';
+
 
   // Types Default Length
   const DEFAULT_LENGTH = [
-    self::CHAR => 50,
-    self::VARCHAR => 50,
+    self::CHAR => 255,
+    self::VARCHAR => 255,
     //
     self::TINYTEXT => null,
     self::TEXT => null,
@@ -47,12 +50,27 @@ class ColumnType
     self::DECIMAL => [10,2],
     self::FLOAT => null,
     self::DOUBLE => null,
+    //
+    // Array-like types
+    self::ENUM => ['Y','N'],
+    self::SET => ['Value A', 'Value B'],
   ];
 
+  const DEFAULT_VALUE_TYPES = [
+    'int' => [
+      self::BIGINT, self::INT, self::MEDIUM_INT, self::SMALL_INT, self::TINY_INT
+    ],
+    'numeric' => [
+      self::DECIMAL, self::FLOAT, self::DOUBLE
+    ],
+    'array' => [
+      self::ENUM, self::SET
+    ],
+  ];
 
   protected $name;
 
-  protected $length;
+  protected $default_length;
 
 
   protected static function instance()
@@ -75,9 +93,53 @@ class ColumnType
       $length = implode(',', $length);
     }
 
-    $this->length = $length ? "({$length})" : '';
+    $this->default_length = $length ?: '';
 
     return $this;
+  }
+
+
+  public function getName()
+  {
+    return $this->name;
+  }
+
+
+  public function getDefaultLength()
+  {
+    return $this->default_length;
+  }
+
+
+  public function syncLength(int $length = null)
+  {
+    pr(['usr' => __FUNCTION__, 'length' => $length, 'def' => $this->default_length,
+      'is_null' => is_null($length), 'grter' => $length > $this->default_length,
+      ]);
+
+    if( ! $length || $length > $this->default_length){
+      $length = $this->default_length;
+    }
+
+    return $length;
+  }
+
+
+  public function matchesValue($value)
+  {
+    $value_type = null;
+
+    foreach (self::DEFAULT_VALUE_TYPES as $default_value_type => $names){
+
+      if(in_array($this->getName(), $names)){
+        $value_type = $default_value_type;
+        break;
+      }
+    }
+
+    $check_method = 'is_' . $value_type;
+
+    return call_user_func($check_method. $value);;
   }
 
 
