@@ -115,10 +115,11 @@ class BluePrint
 
   /**
    * @param string[] $columns An array of the names of added/existing columns
+   * @param string $name
    */
-  public function unique(array $columns)
+  public function unique(array $columns, string $name = null)
   {
-
+    $this->getTable()->setUnique( $columns, $name );
   }
 
 

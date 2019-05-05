@@ -3,11 +3,11 @@
 namespace Orcses\PhpLib\Database\Schema;
 
 
+use Orcses\PhpLib\Utility\Str;
 use Orcses\PhpLib\Database\Schema\Columns\Column;
 use Orcses\PhpLib\Database\Schema\Columns\NumericColumn;
 use Orcses\PhpLib\Exceptions\Database\Schema\ColumnNotFoundException;
 use Orcses\PhpLib\Exceptions\Database\Schema\DuplicateColumnException;
-use Orcses\PhpLib\Utility\Str;
 
 
 class Table
@@ -36,7 +36,7 @@ class Table
   /** @var Column[] $primary */
   protected $primary = [];
 
-  /** @var Column[] $unique */
+  /** @var Index[] $unique */
   protected $unique = [];
 
 
@@ -108,7 +108,7 @@ class Table
 
   public function setPrimary(string $column)
   {
-    $this->primary[] = $this->getColumn($column)->getName();
+    $this->primary[] = $this->getColumn($column);
 
     return $this;
   }
@@ -122,7 +122,12 @@ class Table
 
   public function resolvePrimary()
   {
-    return implode(',', Str::addBackQuotes( $this->primary ));
+    if( ! $this->primary instanceof Index){
+
+      $this->primary = Index::create( Index::PRIMARY, ...$this->primary );
+    }
+
+    return $this->primary->resolve();
   }
 
 
@@ -134,9 +139,30 @@ class Table
   }
 
 
-  public function setUnique(string $name, Column $columns)
+  public function getDefaultIndexName()
   {
-    $this->unique[ $name ] = $columns;
+    return "{$this->name}";
+  }
+
+
+  /**
+   * @param string[] $columns An array of the names of added/existing columns
+   * @param string $name
+   * @return static
+   */
+  public function setUnique(array $columns, string $name = null)
+  {
+    if(is_null($name)){
+      $parts = [$this->name, implode('_', $columns), 'unique'];;
+    }
+
+    foreach ($columns as $i => $column){
+      $columns[ $i ] = $this->getColumn($column);
+    }
+
+    $unique_index = Index::create( Index::UNIQUE, ...$columns )->setName($name);;
+
+    $this->unique[ $unique_index->getName() ] = $unique_index;
 
     return $this;
   }
@@ -144,6 +170,17 @@ class Table
 
   public function getUnique()
   {
+    return $this->unique;
+  }
+
+
+  public function resolveUnique()
+  {
+    foreach ($this->unique as $name => $unique_index){
+      /** @var Index[] $unique_index */
+      $this->unique[ $name ] = $unique_index->resolve();
+    }
+
     return $this->unique;
   }
 

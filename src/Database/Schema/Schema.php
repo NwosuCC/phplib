@@ -114,7 +114,7 @@ class Schema
   {
     $primary = $this->table->resolvePrimary();
 
-    return $primary ? "PRIMARY KEY ({$primary})" : '';
+    return $primary ?  : '';
   }
 
 
