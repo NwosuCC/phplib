@@ -7,6 +7,12 @@ use Orcses\PhpLib\Database\Schema\Columns\Column;
 
 class Index
 {
+  const PRIMARY  = 'primary';
+  const UNIQUE   = 'unique';
+  const FULLTEXT = 'fulltext';
+  const SPATIAL  = 'spatial';
+  const KEY      = 'key';
+
   protected $name;
 
   protected $columns = [];
@@ -28,7 +34,6 @@ class Index
 
   public function unique(string $type, Column $column)
   {
-
     $this->columns[ $type ][] = $column;
   }
 

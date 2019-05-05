@@ -25,38 +25,55 @@ class ColumnType
   const FLOAT = 'FLOAT';
   const DOUBLE = 'DOUBLE';
 
+  const TIME = 'TIME';
+  const DATE = 'DATE';
+  const DATETIME = 'DATETIME';
+  const TIMESTAMP = 'TIMESTAMP';
+  const YEAR = 'YEAR';
+
   const ENUM = 'ENUM';
   const SET = 'SET';
 
 
   // Types Default Length
   const DEFAULT_LENGTH = [
+    // String
     self::CHAR => 255,
     self::VARCHAR => 255,
-    //
+
     self::TINYTEXT => null,
     self::TEXT => null,
     self::MEDIUMTEXT => null,
     self::LONGTEXT => null,
-    //
-    // Numeric types : INT
+
+    // Numeric : INT
     self::BIGINT => 20,
     self::INT => 11,
     self::MEDIUM_INT => 9,
     self::SMALL_INT => 6,
     self::TINY_INT => 4,
-    //
-    // Numeric types : REAL
+
+    // Numeric : REAL
     self::DECIMAL => [10,2],
     self::FLOAT => null,
     self::DOUBLE => null,
-    //
-    // Array-like types
+
+    // DateTime
+    self::TIME => null,
+    self::DATE => null,
+    self::DATETIME => null,
+    self::TIMESTAMP => 0,  // max 6 (MySQL)
+    self::YEAR => null,
+
+    // Array-like
     self::ENUM => ['Y','N'],
     self::SET => ['Value A', 'Value B'],
   ];
 
   const DEFAULT_VALUE_TYPES = [
+    'string' => [
+      self::CHAR, self::VARCHAR, self::TINYTEXT, self::TEXT, self::MEDIUMTEXT, self::LONGTEXT
+    ],
     'int' => [
       self::BIGINT, self::INT, self::MEDIUM_INT, self::SMALL_INT, self::TINY_INT
     ],
@@ -65,6 +82,9 @@ class ColumnType
     ],
     'array' => [
       self::ENUM, self::SET
+    ],
+    'time' => [
+      self::TIME, self::DATE, self::DATETIME, self::TIMESTAMP, self::YEAR
     ],
   ];
 
@@ -111,35 +131,108 @@ class ColumnType
   }
 
 
-  public function syncLength(int $length = null)
+  /*public function validateLength(int $length)
   {
-    pr(['usr' => __FUNCTION__, 'length' => $length, 'def' => $this->default_length,
-      'is_null' => is_null($length), 'grter' => $length > $this->default_length,
-      ]);
+    $default_length = $this->getDefaultLength();
 
-    if( ! $length || $length > $this->default_length){
-      $length = $this->default_length;
+    if( ! is_numeric($default_length)){
+      return $default_length;
+    }
+    elseif($length <= 0){
+      return false;
+    }
+
+    if(in_array($this->getName(), [self::CHAR, self::VARCHAR])){
+
+      return $length <= $default_length;
+    }
+
+    return true;
+  }*/
+
+
+  /*public function syncLength(int $length = null)
+  {
+    $default_length = $this->getDefaultLength();
+
+    if( ! is_numeric($length) || $length > $default_length){
+      $length = $default_length;
     }
 
     return $length;
+  }*/
+
+
+  protected function getReal($value)
+  {
+    return is_numeric($value) ? $value + 0 : false;
   }
 
 
-  public function matchesValue($value)
+  protected function getInt($value)
   {
-    $value_type = null;
+    if(false !== ($value = $this->getReal($value))){
+      $int_value = (int) $value;
+
+      return $int_value == $value ? $int_value : false;
+    }
+
+    return false;
+  }
+
+
+  protected function getString($value)
+  {
+    return is_string($value) ? $value . '' : false;
+  }
+
+
+  protected function getArray($value)
+  {
+    return is_array($value) ? $value : false;
+  }
+
+
+  protected function getTime($value)
+  {
+    $time_defaults = [null, DateTimeColumn::CURRENT_TIMESTAMP];
+
+    return in_array($value, $time_defaults, true) ? $value : false;
+  }
+
+
+  protected function validateWithDefaultType($value, string $type)
+  {
+    if( ! is_bool($value)){
+
+      switch (strval($type)){
+        case 'int'    : return $this->getInt($value); break;
+        case 'numeric': return $this->getReal($value); break;
+        case 'string' : return $this->getString($value); break;
+        case 'array'  : return $this->getArray($value); break;
+        case 'time'   : return $this->getTime($value); break;
+      }
+    }
+
+    return false;
+  }
+
+
+  public function matchValue($value)
+  {
+    if(is_null($value)) {
+      return $value;
+    }
 
     foreach (self::DEFAULT_VALUE_TYPES as $default_value_type => $names){
 
       if(in_array($this->getName(), $names)){
-        $value_type = $default_value_type;
-        break;
+
+        return $this->validateWithDefaultType( $value, $default_value_type);
       }
     }
 
-    $check_method = 'is_' . $value_type;
-
-    return call_user_func($check_method. $value);;
+    return false;
   }
 
 
@@ -224,6 +317,36 @@ class ColumnType
   public static function longText()
   {
     return static::instance()->addProps( self::LONGTEXT);
+  }
+
+
+  public static function date()
+  {
+    return static::instance()->addProps( self::DATE);
+  }
+
+
+  public static function time()
+  {
+    return static::instance()->addProps( self::TIME);
+  }
+
+
+  public static function dateTime()
+  {
+    return static::instance()->addProps( self::DATETIME);
+  }
+
+
+  public static function timestamp()
+  {
+    return static::instance()->addProps( self::TIMESTAMP);
+  }
+
+
+  public static function year()
+  {
+    return static::instance()->addProps( self::YEAR);
   }
 
 

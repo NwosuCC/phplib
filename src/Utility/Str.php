@@ -72,15 +72,27 @@ class Str
   }
 
 
-  public static function addSingleQuotes(array $values, bool $escape_existing_quotes = true)
+  protected static function addQuotes(array $values, string $char)
   {
-    $single_quote = "'";
+    $single_quote = "{$char}";
 
-    return array_map(function($value) use($single_quote, $escape_existing_quotes){
+    return array_map(function($value) use($single_quote){
 
       return "{$single_quote}". $value ."{$single_quote}";
 
     }, $values);
+  }
+
+
+  public static function addSingleQuotes(array $values)
+  {
+    return static::addQuotes( $values, "'" );
+  }
+
+
+  public static function addBackQuotes(array $values)
+  {
+    return static::addQuotes( $values, "`" );
   }
 
 

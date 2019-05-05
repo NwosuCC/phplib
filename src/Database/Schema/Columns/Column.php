@@ -4,20 +4,20 @@ namespace Orcses\PhpLib\Database\Schema\Columns;
 
 
 use Orcses\PhpLib\Utility\Str;
+use Orcses\PhpLib\Exceptions\InvalidArgumentException;
 
 
 abstract class Column
 {
-  const NAME       = 'name';
-  const TYPE       = 'type';
-  const LENGTH     = 'length';
-  const NULL       = 'null';
-  const DEFAULT    = 'default';
-  const NO_DEFAULT = 'no_default';
-  const PRIMARY    = 'primary';
-  const COMMENT    = 'comment';
-  const EXPRESSION = 'expression';
-  const AFTER      = 'after';
+  const NAME        = 'name';
+  const TYPE        = 'type';
+  const LENGTH      = 'length';
+  const NULL        = 'null';
+  const DEFAULT     = 'default';
+  const HAS_DEFAULT = 'has_default';
+  const COMMENT     = 'comment';
+  const EXPRESSION  = 'expression';
+  const AFTER       = 'after';
 
   protected $name;
 
@@ -27,9 +27,7 @@ abstract class Column
 
   protected $null = false;
 
-  protected $default, $no_default;
-
-  protected $primary;
+  protected $default, $has_default;
 
   protected $comment;
 
@@ -40,12 +38,12 @@ abstract class Column
   protected $properties = [];
 
   protected $props = [
-    self::LENGTH, self::NULL, self::DEFAULT, self::NO_DEFAULT,
-    self::PRIMARY, self::COMMENT, self::EXPRESSION, self::AFTER
+    self::LENGTH, self::NULL, self::DEFAULT, self::HAS_DEFAULT,
+    self::COMMENT, self::EXPRESSION, self::AFTER
   ];
 
   protected $default_props = [
-    self::LENGTH, self::NO_DEFAULT
+    self::LENGTH, self::HAS_DEFAULT
   ];
 
   protected $created = false;
@@ -136,6 +134,10 @@ abstract class Column
 
   public function setName(string $name)
   {
+    if('' === ($name = trim($name))){
+      throw new InvalidArgumentException("Invalid column name supplied");
+    }
+
     $this->name = $name;
 
     return $this;
@@ -158,6 +160,13 @@ abstract class Column
   }
 
 
+  /** @return string */
+  public function getTypeName()
+  {
+    return $this->getType()->getName();
+  }
+
+
   /** @return ColumnType */
   public function getType()
   {
@@ -167,7 +176,20 @@ abstract class Column
 
   public function setLength(int $length = 0)
   {
-    $this->length = $this->getType()->syncLength( $length );
+    $column_type = $this->getType();
+
+    if(0 === func_num_args()){
+      $length = $column_type->getDefaultLength();
+    }
+    /*elseif( ! $column_type->validateLength( $length )){
+      // ToDo: leave these checks for the underlying Database, then, throw any exceptions from there
+      throw new InvalidArgumentException(
+        "Invalid length '{$length}' for column type '{$column_type->getName()}'"
+        . ", suggests '{$column_type->getDefaultLength()}'"
+      );
+    }*/
+
+    $this->length = $length;
 
     return $this;
   }
@@ -179,6 +201,10 @@ abstract class Column
   }
 
 
+  /**
+   * @param bool $flag
+   * @return static
+   */
   // When null !== true (i.e NOT NULL), set default = '' (removes DEFAULT the clause)
   public function setNull(bool $flag = true)
   {
@@ -187,7 +213,7 @@ abstract class Column
     $this->null = $flag;
 
     if($this->null !== true && is_null($this->getDefault())){
-      $this->setNoDefault(true);
+      $this->setHasDefault(false);
     }
 
     return $this;
@@ -200,24 +226,34 @@ abstract class Column
   }
 
 
-  protected function setNoDefault(bool $flag = true)
+  public function setHasDefault(bool $flag = false)
   {
-    $this->no_default = $flag;
+    $this->has_default = $flag;
   }
 
 
-  public function getNoDefault()
+  public function getHasDefault()
   {
-    return $this->no_default;
+    return $this->has_default;
   }
 
 
   // When default === '' (empty string), remove the DEFAULT clause
   public function setDefault(string $default = null)
   {
-    $this->setNoDefault(false);
+    $matched_default = $this->getType()->matchValue( $default );
 
-    $this->default = $default;
+    if(false === $matched_default){
+      pr(['usr' => __FUNCTION__, '$default' => $default, '$matched_default' => false, '$name' => $this->getName()]);
+      // ToDo: throw Exception
+      throw new InvalidArgumentException(
+        "Column type '{$this->getTypeName()}' cannot have default value '{$default}'"
+      );
+    }
+
+    $this->setHasDefault(true);
+
+    $this->default = $matched_default;
 
     if(is_null($this->default)){
       $this->setNull(true);
@@ -230,20 +266,6 @@ abstract class Column
   public function getDefault()
   {
     return $this->default;
-  }
-
-
-  public function setPrimary()
-  {
-    $this->primary = true;
-
-    return $this;
-  }
-
-
-  public function getPrimary()
-  {
-    return $this->primary;
   }
 
 

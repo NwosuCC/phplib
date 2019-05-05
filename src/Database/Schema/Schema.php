@@ -4,7 +4,10 @@ namespace Orcses\PhpLib\Database\Schema;
 
 
 use Closure;
+use Orcses\PhpLib\Database\Schema\Columns\DateTimeColumn;
+use Orcses\PhpLib\Utility\Str;
 use Orcses\PhpLib\Database\Schema\Columns\Column;
+use Orcses\PhpLib\Database\Schema\Columns\NumericColumn;
 
 
 class Schema
@@ -13,8 +16,7 @@ class Schema
 
   protected $callback;
 
-  /** @var Column[] $columns */
-  protected $columns = [];
+  protected $blue_print;
 
 
   public function __construct(Table $table, Closure $callback)
@@ -29,10 +31,7 @@ class Schema
   {
     $table = static::getTable( $table );
 
-//    static::Schema( $table, $callback );
-
-    // --test
-    return static::Schema( $table, $callback );
+    static::Schema( $table, $callback );
   }
 
 
@@ -44,6 +43,10 @@ class Schema
   }
 
 
+  /**
+   * @param string $table
+   * @return Table
+   */
   protected static function getTable(string $table)
   {
     return app()->build(Table::class, ['name' => $table]);
@@ -56,46 +59,158 @@ class Schema
       Schema::class, compact('table', 'callback')
     );
 
-    return $schema->run();
+    $schema->run();
+  }
+
+
+  protected function addQuotes()
+  {
+
   }
 
 
   protected function run()
   {
-    $blue_print = new BluePrint( $this->table );
+    $this->blue_print = new BluePrint( $this->table );
 
-    $this->callback->call($this, $blue_print);
+    $this->callback->call($this, $this->blue_print);
 
-    $table = $blue_print->getTable();
+    $columns = $this->blue_print->getTable()->getColumns();
 
-    $cols = $blue_print->getColumns();
+    $definitions = [];
 
-    pr(['usr' => __FUNCTION__, 'table' => $table, 'cols' => $cols]);
+    foreach ($columns as $column){
 
-    $table_def = [];
+      $col_name = $column->getName();
 
-    foreach ($cols as $col){
-      $col_type = $col->getType();
+      $col_type_length = $this->getTypeLengthClause( $column );
 
-      $length = ($n = $col->getLength()) ? "({$n})" : '';
+      $null_clause = $this->getNullClause( $column );
 
-      $null = ($col->getNull() ? '' : ' NOT') . ' NULL';
+      $default_clause = $this->getDefaultClause( $column );
 
-      $default_value = is_null($dv = $col->getDefault()) ? 'NULL' : $dv;
+      pr(['usr' => __FUNCTION__, 'type name' => ($ct = $column->getType())->getName(),
+          'type def_length' => $ct->getDefaultLength(),
+          'length' => $column->getLength(), 'props' => $column->getProperties()]);
 
-      $default = $col->getNoDefault() ? '' : ' DEFAULT ' . "'{$default_value}'";
+      $definition = "`{$col_name}` {$col_type_length} {$null_clause} {$default_clause}";
 
-      pr(['usr' => __FUNCTION__, 'type name' => $col_type->getName(), 'type def_length' => $col_type->getDefaultLength(),
-        'length' => $col->getLength(), 'props' => $col->getProperties()]);
+      $definitions[] = trim( Str::trimMultipleSpaces( $definition ) );
 
-      $table_def[] = "`{$col->getName()}` {$col_type->getName()}{$length}{$null}{$default}";
-
-      pr(['usr' => __FUNCTION__, '$clause' => end($table_def)]);
+      pr(['usr' => __FUNCTION__, '$clause' => end($definitions)]);
     }
 
-    $table_definition = implode(', ', $table_def);
+    // Add primary
+    $definitions[] = $this->getPrimaryClause();
+
+
+    $table_definition = implode(', ', $definitions);
 
     pr(['usr' => __FUNCTION__, '$table_definition' => $table_definition]);
+  }
+
+
+  protected function getPrimaryClause()
+  {
+    $primary = $this->table->resolvePrimary();
+
+    return $primary ? "PRIMARY KEY ({$primary})" : '';
+  }
+
+
+  protected function getTypeLengthClause(Column $column)
+  {
+    $col_type = $column->getType()->getName();
+
+    $length = ($n = $column->getLength()) ? "({$n})" : '';
+
+    if($column instanceof NumericColumn && $column->getUnsigned()){
+
+      $unsigned = ' ' . strtoupper(NumericColumn::UNSIGNED);
+    }
+
+    return $col_type . $length . ($unsigned ?? '');
+  }
+
+
+  protected function getNullClause(Column $column)
+  {
+    return ($column->getNull() ? '' : ' NOT') . ' NULL';
+  }
+
+
+  protected function getDefaultClause(Column $column)
+  {
+    if($column instanceof NumericColumn && $column->getAutoIncrement()){
+
+      $default_clause = $this->getAutoIncrementClause($column);
+    }
+    else {
+      $default_clause = $column->getHasDefault() ? $this->resolveDefaultValue($column) : '';
+    }
+
+    return $default_clause;
+  }
+
+
+  protected function getAutoIncrementClause(NumericColumn $column)
+  {
+    $column->setHasDefault(false);
+
+    $this->table->setAutoIncrement($column);
+
+    return ' ' . strtoupper(NumericColumn::AUTOINCREMENT);
+  }
+
+
+  protected function resolveDefaultValue(Column $column)
+  {
+    if($column instanceof DateTimeColumn){
+      [$timestamp, $on_update] = $this->resolveDateTimeDefault( $column );
+    }
+    else {
+      $timestamp = $on_update = '';
+    }
+
+    $default = $timestamp ?: $column->getDefault();
+
+    switch(true){
+      case $timestamp : $default_value = $default . ' ' . $on_update; break;
+
+      case is_null( $default ) : $default_value = 'NULL ' . $on_update; break;
+
+      default : $default_value = "'{$default}'";  // Use add_quotes_value()
+    }
+
+    return ' DEFAULT ' . $default_value;
+  }
+
+
+  /**
+   * @param DateTimeColumn $column
+   * @return string[]
+   */
+  protected function resolveDateTimeDefault(DateTimeColumn $column)
+  {
+    if( ! $column->isDateTime()){
+      return ['', ''];
+    }
+
+    $current_timestamp = strtoupper(DateTimeColumn::CURRENT_TIMESTAMP);
+
+    $precision = $column->getPrecision();
+
+    $current_timestamp .= ((int) $precision > 0) ? "({$precision})" : '';
+
+    $default_timestamp = $column->getCurrentTimestamp() ? $current_timestamp : '';
+
+    $on_update = $column->getOnUpdate()
+      ? str_replace('_', ' ', DateTimeColumn::ON_UPDATE)
+      : '';
+
+    $default_on_update = $on_update ? strtoupper($on_update) .' '. $current_timestamp : '';
+
+    return [ $default_timestamp, $default_on_update ];
   }
 
 

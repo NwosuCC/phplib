@@ -3,8 +3,9 @@
 namespace Orcses\PhpLib\Database\Schema\Columns;
 
 
-use Orcses\PhpLib\Exceptions\InvalidArgumentException;
 use Orcses\PhpLib\Utility\Arr;
+use Orcses\PhpLib\Exceptions\InvalidArgumentException;
+
 
 class NumericColumn extends Column
 {
@@ -62,7 +63,7 @@ class NumericColumn extends Column
       return;
     }
 
-    $length = $this->getLength() ?: ColumnType::decimal()->getDefaultLength();
+    $length = $this->getLength() ?: $this->getType()->getDefaultLength();
 
     $length = Arr::stripEmpty( explode(',', $length));
 
@@ -124,7 +125,7 @@ class NumericColumn extends Column
     }
 
     // If $flag === true, 'auto_increment' replaces the 'default'
-    $this->setNoDefault(true);
+    $this->setHasDefault(false);
 
     $this->auto_increment = true;
 
@@ -138,31 +139,21 @@ class NumericColumn extends Column
   }
 
 
-  public function setDefault(string $default = null)
-  {
-    if( ! $this->getType()->matchesValue( $default )){
-      return $this;
-    }
-
-    return parent::setDefault( $default );
-  }
-
-
   protected function isIntNumber()
   {
-    return in_array( $this->getType(), self::NUMBERS_INT );
+    return in_array( $this->getTypeName(), self::NUMBERS_INT );
   }
 
 
   protected function isRealNumber()
   {
-    return in_array( $this->getType(), self::NUMBERS_REAL );
+    return in_array( $this->getTypeName(), self::NUMBERS_REAL );
   }
 
 
   protected function isDecimal()
   {
-    return $this->getType()->getName() === ColumnType::DECIMAL;
+    return $this->getTypeName() === ColumnType::DECIMAL;
   }
 
 
@@ -170,7 +161,7 @@ class NumericColumn extends Column
    * @param int $precision
    * @return NumericColumn
    */
-  public function setPrecision(int $precision = null)
+  public function setPrecision(int $precision)
   {
     // First, check that this column is REAL NUMBER.
     // Set the Significant Digits ==> Overrides 'length' property
@@ -191,7 +182,7 @@ class NumericColumn extends Column
    * @param int $scale
    * @return NumericColumn
    */
-  public function setScale(int $scale = null)
+  public function setScale(int $scale)
   {
     // First, check that this column is REAL NUMBER.
     // Set the Decimal Places ==> Overrides 'length' property

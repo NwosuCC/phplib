@@ -3,19 +3,17 @@
 namespace Orcses\PhpLib\Database\Schema;
 
 
+use Orcses\PhpLib\Utility\Arr;
 use Orcses\PhpLib\Database\Schema\Columns\Column;
 use Orcses\PhpLib\Database\Schema\Columns\ColumnType;
 use Orcses\PhpLib\Database\Schema\Columns\StringColumn;
 use Orcses\PhpLib\Database\Schema\Columns\NumericColumn;
-use Orcses\PhpLib\Exceptions\Database\Schema\DuplicateColumnException;
+use Orcses\PhpLib\Database\Schema\Columns\DateTimeColumn;
 
 
 class BluePrint
 {
   protected $table;
-
-  /** @var Column[] $columns */
-  protected $columns = [];
 
 
   public function __construct(Table $table)
@@ -31,7 +29,7 @@ class BluePrint
     ];
 
     return $this->addNumericColumn(
-      $name, ColumnType::bigInt(), $this->mergeProps( $length, $properties )
+      $name, ColumnType::int(), $this->mergeProps( $length, $properties )
     );
   }
 
@@ -61,6 +59,69 @@ class BluePrint
   }
 
 
+  public function timestamp(string $name, int $precision = 0)
+  {
+    $properties = [
+      DateTimeColumn::PRECISION => $precision,
+    ];
+
+    return $this->addDateTimeColumn( $name, ColumnType::timestamp(), $properties );
+  }
+
+
+  public function timestamps(array $names = null, int $precision = 0, bool $null = false)
+  {
+    $names = $names ?: [];
+
+    $created_at = ! is_null($names[0] ?? null) ? $names[0] : DateTimeColumn::CREATED_AT;
+
+    $updated_at = ! is_null($names[1] ?? null) ? $names[1] : DateTimeColumn::UPDATED_AT;
+
+    $this->timestamp( $created_at, $precision )->setNull($null)->setCurrentTimestamp();
+
+    $this->timestamp( $updated_at, $precision )->setNull($null)->setCurrentTimestamp()->setOnUpdate();
+  }
+
+
+  public function nullTimestamps(array $names = null, int $precision = 0)
+  {
+    $this->timestamps( $names, $precision, true );
+  }
+
+
+  /**
+   * @param string $name
+   * @return DateTimeColumn
+   */
+  public function softDeletes(string $name = DateTimeColumn::DELETED_AT)
+  {
+    return $this->timestamp( $name )->setNull();
+  }
+
+
+  /**
+   * Resets the primary keys with the supplied columns
+   * @param string[] $columns An array of the names of added/existing columns
+   */
+  public function primary(...$columns)
+  {
+    $table = $this->getTable()->clearPrimary();
+
+    foreach(Arr::unwrap( $columns ) as $column){
+      $table->setPrimary( $column );
+    }
+  }
+
+
+  /**
+   * @param string[] $columns An array of the names of added/existing columns
+   */
+  public function unique(array $columns)
+  {
+
+  }
+
+
   protected function mergeProps(int $length = null, array $properties = null)
   {
     if(is_null($properties)){
@@ -87,7 +148,7 @@ class BluePrint
       NumericColumn::class, compact('name', 'type', 'properties')
     );
 
-    $this->addColumn( $column );
+    $this->table->addColumn( $column );
 
     return $column;
   }
@@ -105,34 +166,34 @@ class BluePrint
       StringColumn::class, compact('name', 'type', 'properties')
     );
 
-    $this->addColumn( $column );
+    $this->table->addColumn( $column );
 
     return $column;
   }
 
 
-  protected function addColumn(Column &$column)
+  /**
+   * @param string $name      E.g: 'email'
+   * @param ColumnType $type
+   * @param array $properties E.g: [Column::LENGTH => 64]
+   * @return DateTimeColumn
+   */
+  protected function addDateTimeColumn(string $name, ColumnType $type, array $properties)
   {
-    if(array_key_exists($column_name = $column->getName(), $this->columns)){
+    $column = app()->build(
+      DateTimeColumn::class, compact('name', 'type', 'properties')
+    );
 
-      throw new DuplicateColumnException( $column_name, $this->table->getName() );
-    }
+    $this->getTable()->addColumn( $column );
 
-    $this->columns_index[] = $column_name;
-
-    $this->columns[ $column_name ] = $column;
+    return $column;
   }
 
 
   public function getTable()
   {
-    return $this->table ;
+    return $this->table;
   }
 
-
-  public function getColumns()
-  {
-    return $this->columns;
-  }
 
 }
