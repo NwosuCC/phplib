@@ -41,6 +41,12 @@ class MysqlQuery extends Query {
   }
 
 
+  protected function getConnection()
+  {
+    return $this->connection;
+  }
+
+
   protected static function throwError(string $message, string $func_name = '')
   {
     throw new MysqlQueryException( $message, $func_name );
@@ -620,7 +626,7 @@ class MysqlQuery extends Query {
 
     $this->run();
 
-//    $this->connection->close();
+//    $this->getConnection()->close();
   }
 
 
@@ -664,21 +670,21 @@ class MysqlQuery extends Query {
     }
 
     $this->result = call_user_func(
-      [$this->connection, $method], $sql = $this->sql()
+      [$this->getConnection(), $method], $sql = $this->sql()
     );
 
     if(app()->config('database.log_queries')){
-      Logger::log('sql', [$this->connection->affected_rows, $sql]);
+      Logger::log('sql', [$this->getAffectedRows(), $sql]);
     }
 
     pr(['acc' => __FUNCTION__, '$sql' => trim($sql),
-      'affected_rows' => $this->connection->affected_rows,
-      'field_count' => $this->connection->field_count,
+      'affected_rows' => $this->getAffectedRows(),
+      'field_count' => $this->getConnection()->field_count,
       'num_rows' => $this->result->num_rows ?? '']);
 
     if ( ! $this->result){
       static::throwError(
-        $this->connection->error."; Problem with Query \"". $sql ."\"\n"
+        $this->getConnection()->error."; Problem with Query \"". $sql ."\"\n"
       );
     }
 
@@ -695,6 +701,12 @@ class MysqlQuery extends Query {
     $this->sqlMethod = 'multi_query';
 
     return $this->run();
+  }
+
+
+  protected function getAffectedRows()
+  {
+    return $this->getConnection()->affected_rows;
   }
 
 
@@ -728,7 +740,7 @@ class MysqlQuery extends Query {
       // --------------------------------------------------------------------------
       $this->isNewQuery = false;
 
-      $connection = $this->connection;
+      $connection = $this->getConnection();
 
       // Retrieve the multi-query parameters previously stored in multi_queries()
       $keys = ['queries', 'labels', 'use_result'];
@@ -1382,7 +1394,7 @@ class MysqlQuery extends Query {
 
     if($this->run()->result){
 
-      return $this->lastWriteRow() ?: $this->connection->affected_rows;
+      return $this->lastWriteRow() ?: $this->getAffectedRows();
     }
 
     return false;
@@ -1432,7 +1444,7 @@ class MysqlQuery extends Query {
 
 //    return $this->run()->getReturnValue('update');
 
-    return $this->run()->result ? $this->connection->affected_rows : false;
+    return $this->run()->result ? $this->getAffectedRows() : false;
   }
 
 
@@ -1455,19 +1467,19 @@ class MysqlQuery extends Query {
 
     $option = $op_values[ $op ] ?? null;
 
-    $return_option = (! $option || $this->connection->affected_rows > 1)
+    $return_option = (! $option || $this->getAffectedRows() > 1)
       ? '1'
       : strval($this->options[ $option ]);
 
     switch( $return_option ){
       case '2' : {
-        return !! $this->connection->affected_rows;
+        return !! $this->getAffectedRows();
       }
       case '3' : {
         return $this->result ? $this->lastWriteRow() : null;
       }
       default : {
-        return $this->connection->affected_rows;
+        return $this->getAffectedRows();
       }
     }
   }
@@ -1493,7 +1505,7 @@ class MysqlQuery extends Query {
 
     $this->run();
 
-    return $this->connection->affected_rows;
+    return $this->getAffectedRows();
   }
 
 

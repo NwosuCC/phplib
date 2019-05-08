@@ -3,32 +3,47 @@
 namespace Orcses\PhpLib\Database\Schema;
 
 
-use Orcses\PhpLib\Utility\Str;
 use Orcses\PhpLib\Database\Schema\Columns\Column;
 use Orcses\PhpLib\Database\Schema\Columns\NumericColumn;
 use Orcses\PhpLib\Exceptions\Database\Schema\ColumnNotFoundException;
 use Orcses\PhpLib\Exceptions\Database\Schema\DuplicateColumnException;
+use Orcses\PhpLib\Exceptions\Database\Schema\UnsupportedTablePropertyException;
+use Orcses\PhpLib\Utility\Arr;
+use Orcses\PhpLib\Utility\Str;
 
 
 class Table
 {
-  const COMMENT       = 'comment';
-  const AUTOINCREMENT = 'auto_increment';
-  const AV_ROW_LENGTH = 'av_row_length';
-  const MAX_ROW_COUNT = 'max_row_count';
-  const ROWS_CHECKSUM = 'auto_increment';  // true | false
-  const ROW_FORMAT    = 'auto_increment';  // Compact | Compressed | Default | Dynamic | Fixed | Redundant
-  const COLLATION     = 'collation';
-  const ENGINE        = 'engine';  // InnoDB | MyISAM
+  // These properties must either be not set to value or be skipped altogether
+  const ENGINE         = 'engine';  // InnoDB | MyISAM
+  const COLLATION      = 'collate';
+  const COMMENT        = 'comment';
+  const AUTOINCREMENT  = 'auto_increment';
+  const AVG_ROW_LENGTH = 'avg_row_length';
+  const MAX_ROW_COUNT  = 'max_rows';
+  const ROWS_CHECKSUM  = 'checksum';  // 1
+  const ROW_FORMAT     = 'row_format';  // Compact | Compressed | Default | Dynamic | Fixed | Redundant
+
+  const STRING_VALUES = [
+    self::COLLATION, self::COMMENT
+  ];
+
+  const NUMBER_VALUES = [
+    self::AUTOINCREMENT, self::AVG_ROW_LENGTH, self::MAX_ROW_COUNT, self::ROWS_CHECKSUM
+  ];
+
+  private $constants;
 
   protected $name;
 
   protected $exists;
 
-  /** @var Column[] $columns */
-  protected $columns = [];
+  protected $properties = [];
 
-  protected $collation = 'utf8mb4_unicode_ci';  // put in config
+  protected $default_properties = [
+    self::ENGINE => 'InnoDB',
+    self::COLLATION => 'utf8mb4_unicode_ci'
+  ];
 
   /** @var NumericColumn $auto_increment */
   protected $auto_increment;
@@ -36,8 +51,11 @@ class Table
   /** @var Column[] $primary */
   protected $primary = [];
 
-  /** @var Index[] $unique */
-  protected $unique = [];
+  /** @var Column[] $columns */
+  protected $columns = [];
+
+  /** @var Index[] $indexes */
+  protected $indexes = [];
 
 
   public function __construct(string $name)
@@ -63,6 +81,38 @@ class Table
   public function getExists()
   {
     return $this->exists;
+  }
+
+
+  public function setProperties(array $properties)
+  {
+    $properties = Arr::stripEmpty($properties) + $this->default_properties;
+
+    foreach($properties as $name => $value){
+
+      $this->validateProp( $name );
+
+      switch (true){
+        case $this->isStringValue($name) : $value = Str::addSingleQuotes($value); break;
+        case $this->isNumberValue($name) : $value = (int) $value; break;
+      }
+
+      $this->properties[ $name ] = [strtoupper($name), $value];
+    }
+  }
+
+
+  public function resolveProperties()
+  {
+    if( ! $this->properties){
+      $this->setProperties([]);
+    }
+
+    $properties = Arr::each($this->properties, function($value){
+      return "{$value[0]}={$value[1]}";
+    });
+
+    return implode(', ', $properties);
   }
 
 
@@ -114,12 +164,6 @@ class Table
   }
 
 
-  public function getPrimary()
-  {
-    return $this->primary;
-  }
-
-
   public function resolvePrimary()
   {
     if( ! $this->primary instanceof Index){
@@ -139,57 +183,87 @@ class Table
   }
 
 
-  public function getDefaultIndexName()
+  public function setUnique(array $columns, string $name = null)
   {
-    return "{$this->name}";
+    return $this->addIndex( Index::UNIQUE, $columns, $name);
+  }
+
+
+  public function setIndex(array $columns, string $name = null)
+  {
+    return $this->addIndex( Index::KEY, $columns, $name);
+  }
+
+
+  public function setFulltext(array $columns, string $name = null)
+  {
+    return $this->addIndex( Index::FULLTEXT, $columns, $name);
+  }
+
+
+  public function setSpatial(array $columns, string $name = null)
+  {
+    return $this->addIndex( Index::SPATIAL, $columns, $name);
   }
 
 
   /**
+   * @param string $type
    * @param string[] $columns An array of the names of added/existing columns
    * @param string $name
    * @return static
    */
-  public function setUnique(array $columns, string $name = null)
+  protected function addIndex(string $type, array $columns, string $name = null)
   {
-    if(is_null($name)){
-      $parts = [$this->name, implode('_', $columns), 'unique'];;
-    }
-
     foreach ($columns as $i => $column){
       $columns[ $i ] = $this->getColumn($column);
     }
 
-    $unique_index = Index::create( Index::UNIQUE, ...$columns )->setName($name);;
+    $index = Index::create( $type, ...$columns )->setName($name, $this->getName());;
 
-    $this->unique[ $unique_index->getName() ] = $unique_index;
+    $this->indexes[ $index->getName() ] = $index;
 
     return $this;
   }
 
 
-  public function getUnique()
+  public function resolveIndexes()
   {
-    return $this->unique;
-  }
-
-
-  public function resolveUnique()
-  {
-    foreach ($this->unique as $name => $unique_index){
-      /** @var Index[] $unique_index */
-      $this->unique[ $name ] = $unique_index->resolve();
+    foreach ($this->indexes as $name => $index){
+      /** @var Index[] $index */
+      $this->indexes[ $name ] = $index->resolve();
     }
 
-    return $this->unique;
+    return implode(',', array_values( $this->indexes ));
   }
 
 
-  public function clearUnique()
+  protected function isStringValue(string $name)
   {
-    $this->unique = [];
+    return in_array( $name, self::STRING_VALUES );
+  }
 
-    return $this;
+
+  protected function isNumberValue(string $name)
+  {
+    return in_array( $name, self::NUMBER_VALUES );
+  }
+
+
+  protected function getClassConstants(){
+    if( ! $this->constants){
+      $this->constants = constants(self::class);
+    }
+
+    return $this->constants;
+  }
+
+
+  protected function validateProp(string $name)
+  {
+    if( ! in_array($name, $this->getClassConstants())) {
+      throw new UnsupportedTablePropertyException($name);
+    }
   }
 
 

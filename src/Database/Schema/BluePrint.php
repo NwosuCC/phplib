@@ -22,14 +22,40 @@ class BluePrint
   }
 
 
-  public function increments(string $name, int $length)
+  public function bigIncrements(string $name, int $length = null)
+  {
+    return $this->increments($name, $length, ColumnType::bigInt());
+  }
+
+
+  public function mediumIncrements(string $name, int $length = null)
+  {
+    return $this->increments($name, $length, ColumnType::mediumInt());
+  }
+
+
+  public function smallIncrements(string $name, int $length = null)
+  {
+    return $this->increments($name, $length, ColumnType::smallInt());
+  }
+
+
+  public function tinyIncrements(string $name, int $length = null)
+  {
+    return $this->increments($name, $length, ColumnType::tinyInt());
+  }
+
+
+  public function increments(string $name, int $length = null, ColumnType $type = null)
   {
     $properties = [
       NumericColumn::AUTOINCREMENT => true
     ];
 
+    $column_type = $type ?: ColumnType::int();
+
     return $this->addNumericColumn(
-      $name, ColumnType::int(), $this->mergeProps( $length, $properties )
+      $name, $column_type, $this->mergeProps( $length, $properties )
     );
   }
 
@@ -120,6 +146,42 @@ class BluePrint
   public function unique(array $columns, string $name = null)
   {
     $this->getTable()->setUnique( $columns, $name );
+  }
+
+
+  /**
+   * @param string[] $columns An array of the names of added/existing columns
+   * @param string $name
+   */
+  public function index(array $columns, string $name = null)
+  {
+    $this->getTable()->setIndex( $columns, $name );
+  }
+
+
+  /**
+   * @param string[] $columns An array of the names of added/existing columns
+   * @param string $name
+   */
+  public function fulltext(array $columns, string $name = null)
+  {
+    $this->getTable()->setFulltext( $columns, $name );
+  }
+
+
+  /**
+   * @param string[] $columns An array of the names of added/existing columns
+   * @param string $name
+   */
+  public function spatial(array $columns, string $name = null)
+  {
+    $this->getTable()->setSpatial( $columns, $name );
+  }
+
+
+  public function properties(array $properties)
+  {
+    $this->getTable()->setProperties( $properties );
   }
 
 

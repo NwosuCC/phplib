@@ -71,8 +71,11 @@ class ColumnType
   ];
 
   const DEFAULT_VALUE_TYPES = [
+    'none' => [
+      self::TINYTEXT, self::TEXT, self::MEDIUMTEXT, self::LONGTEXT
+    ],
     'string' => [
-      self::CHAR, self::VARCHAR, self::TINYTEXT, self::TEXT, self::MEDIUMTEXT, self::LONGTEXT
+      self::CHAR, self::VARCHAR
     ],
     'int' => [
       self::BIGINT, self::INT, self::MEDIUM_INT, self::SMALL_INT, self::TINY_INT
@@ -206,11 +209,12 @@ class ColumnType
     if( ! is_bool($value)){
 
       switch (strval($type)){
-        case 'int'    : return $this->getInt($value); break;
-        case 'numeric': return $this->getReal($value); break;
-        case 'string' : return $this->getString($value); break;
-        case 'array'  : return $this->getArray($value); break;
-        case 'time'   : return $this->getTime($value); break;
+        case 'none'   : return null;
+        case 'int'    : return $this->getInt($value);
+        case 'numeric': return $this->getReal($value);
+        case 'string' : return $this->getString($value);
+        case 'array'  : return $this->getArray($value);
+        case 'time'   : return $this->getTime($value);
       }
     }
 

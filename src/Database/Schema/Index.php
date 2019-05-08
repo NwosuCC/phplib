@@ -15,7 +15,7 @@ class Index
   const UNIQUE   = 'unique';
   const FULLTEXT = 'fulltext';
   const SPATIAL  = 'spatial';
-  const KEY      = 'key';
+  const KEY      = 'index';
 
   protected $name;
 
@@ -44,11 +44,12 @@ class Index
 
   /**
    * @param string  $name
+   * @param string  $table_name
    * @return  static
    */
-  public function setName(string $name = null)
+  public function setName(string $name = null, string $table_name = null)
   {
-    $this->name = $name ?: $this->getDefaultName();
+    $this->name = $name ?: $this->getDefaultName($table_name);
 
     return $this;
   }
@@ -60,40 +61,21 @@ class Index
   }
 
 
-  public function getDefaultName()
-  {
-    return "{$this->name}";
-  }
-
-
   public function resolve()
   {
-    $index_method = Str::camelCase('resolve' . $this->type);
-
-    return call_user_func([$this, $index_method]);
+    return call_user_func([$this, $this->getMethodName()]);
   }
 
 
-  protected function getColumnNames()
+  protected function getMethodName()
   {
-    return Arr::each($this->columns, function (Column $column){
-      return $column->getName();
-    });
-  }
-
-
-  protected function validateType(string $supplied, string $expected, string $method){
-    if( ! $supplied === $expected){
-      throw new InvalidArgumentException(
-        "{$method} expects Index type {$expected}, got {$supplied}"
-      );
-    }
+    return Str::camelCase('resolve' . $this->type);
   }
 
 
   protected function resolvePrimary()
   {
-    $this->validateType( $this->type, self::PRIMARY, __METHOD__ );
+    $this->validateType( self::PRIMARY );
 
     $quoted_column_names = Str::addBackQuotes( $this->getColumnNames() );
 
@@ -105,15 +87,69 @@ class Index
 
   protected function resolveUnique()
   {
-    $this->validateType( $this->type, self::UNIQUE, __METHOD__ );
+    return $this->resolveAny( self::UNIQUE );
+  }
+
+
+  protected function resolveFulltext()
+  {
+    return $this->resolveAny( self::FULLTEXT );
+  }
+
+
+  protected function resolveSpatial()
+  {
+    return $this->resolveAny( self::SPATIAL );
+  }
+
+
+  protected function resolveIndex()
+  {
+    return $this->resolveAny( self::KEY );
+  }
+
+
+  protected function resolveAny(string $type)
+  {
+    $this->validateType( $type );
 
     $quoted_index_name = Str::addBackQuotes( $this->getName() );
 
     $quoted_column_names = Str::addBackQuotes( $this->getColumnNames() );
 
+    $index_type = ($this->type !== self::KEY ? strtoupper($this->type) : '') .' INDEX';
+
     return ($clause = trim( implode(',', $quoted_column_names)))
-      ? "UNIQUE INDEX {$quoted_index_name} ({$clause})"
+      ? "{$index_type} {$quoted_index_name} ({$clause})"
       : null;
+  }
+
+
+  protected function getDefaultName(string $table_name)
+  {
+    $table_name = $table_name ? $table_name . '_' : '';
+
+    $index_name = '_' . $this->type;
+
+    return $table_name . implode('_', $this->getColumnNames()) . $index_name;
+  }
+
+
+  protected function getColumnNames()
+  {
+    return Arr::each($this->columns, function (Column $column){
+      return $column->getName();
+    });
+  }
+
+
+  protected function validateType(string $expected)
+  {
+    if( ! $this->type === $expected){
+      throw new InvalidArgumentException(
+        "{$this->getMethodName()} expects Index type {$expected}, got {$this->type}"
+      );
+    }
   }
 
 

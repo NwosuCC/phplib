@@ -4,10 +4,12 @@ namespace Orcses\PhpLib\Database\Schema;
 
 
 use Closure;
-use Orcses\PhpLib\Database\Schema\Columns\DateTimeColumn;
 use Orcses\PhpLib\Utility\Str;
+use Orcses\PhpLib\Database\Query\PDOMysqlQuery;
 use Orcses\PhpLib\Database\Schema\Columns\Column;
+use Orcses\PhpLib\Database\Connection\PDOConnection;
 use Orcses\PhpLib\Database\Schema\Columns\NumericColumn;
+use Orcses\PhpLib\Database\Schema\Columns\DateTimeColumn;
 
 
 class Schema
@@ -16,6 +18,7 @@ class Schema
 
   protected $callback;
 
+  /** @var BluePrint $blue_print */
   protected $blue_print;
 
 
@@ -63,12 +66,6 @@ class Schema
   }
 
 
-  protected function addQuotes()
-  {
-
-  }
-
-
   protected function run()
   {
     $this->blue_print = new BluePrint( $this->table );
@@ -93,28 +90,50 @@ class Schema
           'type def_length' => $ct->getDefaultLength(),
           'length' => $column->getLength(), 'props' => $column->getProperties()]);
 
-      $definition = "`{$col_name}` {$col_type_length} {$null_clause} {$default_clause}";
-
-      $definitions[] = trim( Str::trimMultipleSpaces( $definition ) );
+      $definitions[] = "`{$col_name}` {$col_type_length} {$null_clause} {$default_clause}";
 
       pr(['usr' => __FUNCTION__, '$clause' => end($definitions)]);
     }
 
     // Add primary
-    $definitions[] = $this->getPrimaryClause();
+    $definitions[] = $this->table->resolvePrimary();
 
+    // Add unique
+    $definitions[] = $this->table->resolveIndexes();
 
-    $table_definition = implode(', ', $definitions);
+    // Add table properties
+    $properties[] = $this->table->resolveProperties();
 
-    pr(['usr' => __FUNCTION__, '$table_definition' => $table_definition]);
+    $this->createTable( $definitions, $properties );
   }
 
 
-  protected function getPrimaryClause()
+  /*protected function createTable(array $definitions, array $properties)
   {
-    $primary = $this->table->resolvePrimary();
+    $definitions = implode(', ', $definitions);
 
-    return $primary ?  : '';
+    $properties = implode(', ', $properties);
+
+    $table_name = Str::addBackQuotes( $this->blue_print->getTable()->getName() );
+
+    $create_clause = ['CREATE TABLE', "$table_name ({$definitions}) {$properties};"];
+
+    $create_clause = trim( Str::trimMultipleSpaces( implode(' ', $create_clause) ) );
+
+    $result = (new PDOMysqlQuery( new PDOConnection()))->unprepared( $create_clause )->exec();
+
+    pr(['usr' => __FUNCTION__, '$create_clause' => $result->getStatement()->queryString]);
+  }*/
+
+  protected function createTable(array $definitions, array $properties)
+  {
+    $table_name = $this->blue_print->getTable()->getName();
+
+    $connection = new PDOMysqlQuery( new PDOConnection());
+
+    $result = $connection->createTable( $table_name, $definitions, $properties );
+
+    pr(['usr' => __FUNCTION__, '$create_clause' => $result->getStatement()->queryString]);
   }
 
 

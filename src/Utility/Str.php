@@ -72,25 +72,29 @@ class Str
   }
 
 
-  protected static function addQuotes(array $values, string $char)
+  protected static function addQuotes($values, string $char)
   {
     $single_quote = "{$char}";
 
-    return array_map(function($value) use($single_quote){
+    $is_array = is_array($values);
+
+    $new_values =  array_map(function($value) use($single_quote){
 
       return "{$single_quote}". $value ."{$single_quote}";
 
-    }, $values);
+    }, (array) $values);
+
+    return $is_array ? $new_values : $new_values[0];
   }
 
 
-  public static function addSingleQuotes(array $values)
+  public static function addSingleQuotes($values)
   {
     return static::addQuotes( $values, "'" );
   }
 
 
-  public static function addBackQuotes(array $values)
+  public static function addBackQuotes($values)
   {
     return static::addQuotes( $values, "`" );
   }

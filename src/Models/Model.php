@@ -4,6 +4,8 @@ namespace Orcses\PhpLib\Models;
 
 
 use Carbon\Carbon;
+use Orcses\PhpLib\Database\Connection\PDOConnection;
+use Orcses\PhpLib\Database\Query\PDOMysqlQuery;
 use Orcses\PhpLib\Exceptions\InvalidArgumentException;
 use Orcses\PhpLib\Utility\Arr;
 use Orcses\PhpLib\Utility\Str;
